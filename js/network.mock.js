@@ -5,6 +5,18 @@
 // can swap it back in for quick local testing later if you want.
 import { generateRackOrder } from "./rack.js";
 
+let mockProfile = null;
+export async function signInWithGoogle() {
+  mockProfile = { name: "Jugador de prueba", photo: "" };
+  return mockProfile;
+}
+export function getProfile() {
+  return mockProfile;
+}
+function myDisplayName(fallback) {
+  return mockProfile?.name || fallback;
+}
+
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function randomCode(len = 5) {
   let c = "";
@@ -18,8 +30,9 @@ function writeRoom(code, data) { localStorage.setItem(key(code), JSON.stringify(
 export async function createRoom() {
   const code = randomCode();
   const rackOrder = generateRackOrder();
-  writeRoom(code, { status: "waiting", turn: "p1", players: { p1: true }, scores: { p1: 0, p2: 0 }, rackOrder });
-  return { code, playerId: "p1", rackOrder };
+  const name = myDisplayName("Jugador 1");
+  writeRoom(code, { status: "waiting", turn: "p1", players: { p1: { name } }, scores: { p1: 0, p2: 0 }, rackOrder });
+  return { code, playerId: "p1", rackOrder, name };
 }
 
 export async function joinRoom(codeRaw) {
@@ -27,11 +40,12 @@ export async function joinRoom(codeRaw) {
   const room = readRoom(code);
   if (!room) throw new Error("Esa sala no existe.");
   if (room.players.p2) throw new Error("Esa sala ya está completa.");
-  room.players.p2 = true;
+  const name = myDisplayName("Jugador 2");
+  room.players.p2 = { name };
   room.status = "playing";
   writeRoom(code, room);
   window.dispatchEvent(new StorageEvent("storage", { key: key(code) }));
-  return { code, playerId: "p2", rackOrder: room.rackOrder };
+  return { code, playerId: "p2", rackOrder: room.rackOrder, name };
 }
 
 export function listenRoom(code, callbacks) {

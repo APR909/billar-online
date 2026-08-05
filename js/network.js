@@ -2,13 +2,19 @@
 // REAL MULTIPLAYER NETWORK LAYER — Firebase Realtime Database
 //
 // Same API surface as network.mock.js (already tested against
-// main.js), so main.js needs zero changes:
-//   createRoom() -> { code, playerId, rackOrder }
-//   joinRoom(code) -> { code, playerId, rackOrder }
+// main.js), so main.js needs zero changes to the core game flow.
+// Added on top: optional Google sign-in so a player's real name
+// shows up instead of "Jugador 1" / "Jugador 2". Anonymous auth
+// is still the fallback — signing in with Google is never required.
+//
+//   createRoom() -> { code, playerId, rackOrder, name }
+//   joinRoom(code) -> { code, playerId, rackOrder, name }
 //   listenRoom(code, callbacks) -> unsubscribe()
 //   sendShot(code, playerId, vx, vy)
 //   sendCorrection(code, playerId, balls, nextTurn, scoreDelta)
 //   leaveRoom(code, playerId)
+//   signInWithGoogle() -> { name, photo }
+//   getProfile() -> { name, photo } | null   (null = playing as guest)
 //
 // Sync model: turn-based, so we never stream continuous ball
 // positions. The shooter simulates locally and writes {vx, vy}
@@ -25,6 +31,8 @@ import {
   getAuth,
   signInAnonymously,
   onAuthStateChanged,
+  GoogleAuthProvider,
+  signInWithPopup,
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-auth.js";
 import {
   getDatabase,
@@ -43,6 +51,7 @@ const db = getDatabase(app);
 
 let uidPromise = null;
 function ensureSignedIn() {
+  if (auth.currentUser) return Promise.resolve(auth.currentUser.uid);
   if (!uidPromise) {
     uidPromise = new Promise((resolve, reject) => {
       const unsub = onAuthStateChanged(
@@ -61,6 +70,26 @@ function ensureSignedIn() {
   return uidPromise;
 }
 
+// ---------- Google sign-in (optional) ----------
+export async function signInWithGoogle() {
+  const provider = new GoogleAuthProvider();
+  const result = await signInWithPopup(auth, provider);
+  uidPromise = Promise.resolve(result.user.uid); // keep ensureSignedIn() in sync
+  return { name: result.user.displayName, photo: result.user.photoURL };
+}
+
+export function getProfile() {
+  const u = auth.currentUser;
+  if (!u || u.isAnonymous) return null;
+  return { name: u.displayName, photo: u.photoURL };
+}
+
+function myDisplayName(fallback) {
+  const profile = getProfile();
+  return profile?.name || fallback;
+}
+
+// ---------- rooms ----------
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no O/0/I/1 (ambiguous)
 function randomCode(len = 5) {
   let c = "";
@@ -76,11 +105,12 @@ export async function createRoom() {
   await ensureSignedIn();
   const code = randomCode();
   const rackOrder = generateRackOrder();
+  const name = myDisplayName("Jugador 1");
 
   await set(roomRef(code), {
     status: "waiting",
     turn: "p1",
-    players: { p1: true },
+    players: { p1: { name } },
     scores: { p1: 0, p2: 0 },
     rackOrder,
     createdAt: Date.now(),
@@ -88,7 +118,7 @@ export async function createRoom() {
 
   onDisconnect(ref(db, `rooms/${code}/players/p1`)).remove();
 
-  return { code, playerId: "p1", rackOrder };
+  return { code, playerId: "p1", rackOrder, name };
 }
 
 export async function joinRoom(codeRaw) {
@@ -100,11 +130,12 @@ export async function joinRoom(codeRaw) {
   const room = snap.val();
   if (room.players?.p2) throw new Error("Esa sala ya está completa.");
 
-  await update(ref(db, `rooms/${code}/players`), { p2: true });
+  const name = myDisplayName("Jugador 2");
+  await update(ref(db, `rooms/${code}/players`), { p2: { name } });
   await update(roomRef(code), { status: "playing" });
   onDisconnect(ref(db, `rooms/${code}/players/p2`)).remove();
 
-  return { code, playerId: "p2", rackOrder: room.rackOrder };
+  return { code, playerId: "p2", rackOrder: room.rackOrder, name };
 }
 
 export function listenRoom(code, callbacks) {

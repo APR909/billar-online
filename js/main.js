@@ -27,6 +27,10 @@ const turnIndicatorEl = document.getElementById("turnIndicator");
 const scoreLineEl = document.getElementById("scoreLine");
 const lobbyStatusEl = document.getElementById("lobbyStatus");
 const joinCodeInput = document.getElementById("joinCodeInput");
+const btnGoogleSignIn = document.getElementById("btnGoogleSignIn");
+const googleProfileEl = document.getElementById("googleProfile");
+const googleAvatarEl = document.getElementById("googleAvatar");
+const googleNameEl = document.getElementById("googleName");
 
 // =========================================================
 // GAME STATE
@@ -37,7 +41,7 @@ let pottedThisShot = [];
 let awaitingRespawn = false;
 
 // multiplayer state (null when playing locally)
-let mp = null; // { code, playerId, unsubscribe, currentTurn, opponentGone }
+let mp = null; // { code, playerId, unsubscribe, currentTurn, opponentGone, myName, opponentName }
 let net = null; // lazily-loaded network module (only imported if multiplayer is chosen)
 
 function screen(name) {
@@ -193,7 +197,7 @@ function updateTurnUI() {
     return;
   }
   const myTurn = mp.currentTurn === mp.playerId;
-  turnIndicatorEl.textContent = myTurn ? "tu turno" : "turno del rival";
+  turnIndicatorEl.textContent = myTurn ? "tu turno" : `turno de ${mp.opponentName || "tu rival"}`;
   turnIndicatorEl.className = "turn-indicator " + (myTurn ? "my-turn" : "their-turn");
 }
 
@@ -201,7 +205,16 @@ function updateScoreUI(scores) {
   if (!scores) return;
   const me = mp.playerId === "p1" ? scores.p1 : scores.p2;
   const them = mp.playerId === "p1" ? scores.p2 : scores.p1;
-  scoreLineEl.textContent = `tú: ${me || 0}  ·  rival: ${them || 0}`;
+  scoreLineEl.textContent = `${mp.myName || "tú"}: ${me || 0}  ·  ${mp.opponentName || "rival"}: ${them || 0}`;
+}
+
+function showGoogleProfile(profile) {
+  if (!profile) return;
+  btnGoogleSignIn.classList.add("hidden");
+  googleProfileEl.classList.remove("hidden");
+  googleNameEl.textContent = profile.name || "Conectado";
+  if (profile.photo) googleAvatarEl.src = profile.photo;
+  else googleAvatarEl.style.visibility = "hidden";
 }
 
 // =========================================================
@@ -244,11 +257,26 @@ document.getElementById("btnMultiplayer").addEventListener("click", async () => 
   try {
     net = await import("./network.js");
     lobbyStatusEl.textContent = "";
+    showGoogleProfile(net.getProfile());
     screen("mpLobby");
   } catch (e) {
     console.error(e);
     lobbyStatusEl.textContent = "No se pudo conectar. ¿Configuraste firebase-config.js?";
     lobbyStatusEl.className = "lobby-status error";
+  }
+});
+
+btnGoogleSignIn.addEventListener("click", async () => {
+  btnGoogleSignIn.disabled = true;
+  try {
+    const profile = await net.signInWithGoogle();
+    showGoogleProfile(profile);
+  } catch (e) {
+    console.error(e);
+    lobbyStatusEl.textContent = "No se pudo iniciar sesión con Google.";
+    lobbyStatusEl.className = "lobby-status error";
+  } finally {
+    btnGoogleSignIn.disabled = false;
   }
 });
 
@@ -258,8 +286,8 @@ document.getElementById("btnCreateRoom").addEventListener("click", async () => {
   lobbyStatusEl.textContent = "Creando sala…";
   lobbyStatusEl.className = "lobby-status";
   try {
-    const { code, playerId, rackOrder } = await net.createRoom();
-    mp = { code, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false };
+    const { code, playerId, rackOrder, name } = await net.createRoom();
+    mp = { code, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null };
     roomCodeBigEl.textContent = code;
     screen("mpWaiting");
 
@@ -281,8 +309,8 @@ document.getElementById("btnJoinRoom").addEventListener("click", async () => {
   lobbyStatusEl.textContent = "Uniéndose…";
   lobbyStatusEl.className = "lobby-status";
   try {
-    const { code: roomCode, playerId, rackOrder } = await net.joinRoom(code);
-    mp = { code: roomCode, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false };
+    const { code: roomCode, playerId, rackOrder, name } = await net.joinRoom(code);
+    mp = { code: roomCode, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null };
     startMultiplayerGame();
   } catch (e) {
     console.error(e);
@@ -328,7 +356,10 @@ function startMultiplayerGame() {
       mp.currentTurn = turn;
       updateTurnUI();
     },
-    onScores: updateScoreUI,
+    onScores: (scores) => {
+      mp.lastScores = scores;
+      updateScoreUI(scores);
+    },
     onShot: (shot) => {
       if (!shot || shot.by === mp.playerId) return;
       cue.vx = shot.vx;
@@ -341,8 +372,15 @@ function startMultiplayerGame() {
     },
     onPlayers: (players) => {
       const otherKey = mp.playerId === "p1" ? "p2" : "p1";
+      const other = players && players[otherKey];
       const wasThere = mp.opponentGone === false;
-      if (wasThere && players && !players[otherKey]) {
+
+      if (other && other.name && other.name !== mp.opponentName) {
+        mp.opponentName = other.name;
+        updateTurnUI();
+        if (mp.lastScores) updateScoreUI(mp.lastScores);
+      }
+      if (wasThere && players && !other) {
         mp.opponentGone = true;
         updateTurnUI();
       }

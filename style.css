@@ -194,6 +194,52 @@ canvas {
 
 .overlay-actions { display: flex; flex-direction: column; gap: 12px; }
 
+.btn-google {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border-radius: 999px;
+  border: 1.5px solid rgba(255,255,255,0.18);
+  background: #fff;
+  color: #1f1f1f;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: transform 0.18s ease, box-shadow 0.18s ease;
+}
+.btn-google:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(0,0,0,0.25); }
+.btn-google.hidden { display: none; }
+
+.google-hint {
+  font-size: 0.74rem;
+  color: var(--ink-soft);
+  margin: 8px 0 20px;
+}
+
+.google-profile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 18px;
+  padding: 10px 16px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 999px;
+}
+.google-profile.hidden { display: none; }
+.google-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg);
+}
+.google-profile span { font-size: 0.85rem; font-weight: 600; }
+
 .btn-wide {
   width: 100%;
   padding: 15px 20px;
