@@ -17,7 +17,13 @@ function shuffle(arr) {
   return a;
 }
 
-export function createRack() {
+/** Generates a random ball order — call this once and share it (e.g. via the
+ *  multiplayer room) so every client racks the balls identically. */
+export function generateRackOrder() {
+  return shuffle([1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]);
+}
+
+export function createRack(numberOrder) {
   const centerY = (PLAY_TOP + PLAY_BOTTOM) / 2;
   const apexX = PLAY_LEFT + (PLAY_RIGHT - PLAY_LEFT) * 0.72;
   const headX = PLAY_LEFT + (PLAY_RIGHT - PLAY_LEFT) * 0.22;
@@ -33,7 +39,7 @@ export function createRack() {
     }
   }
 
-  const numbers = shuffle([1, 2, 3, 4, 5, 6, 7, 9, 10, 11, 12, 13, 14, 15]);
+  const numbers = numberOrder || generateRackOrder();
   const balls = [];
   let numIdx = 0;
 

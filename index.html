@@ -14,13 +14,62 @@
   <span class="build-tag mono">// prototipo · físicas locales</span>
 </header>
 
-<main class="stage">
+<!-- MODE SELECT -->
+<div id="modeSelect" class="overlay">
+  <div class="overlay-card">
+    <p class="eyebrow mono">// elige modo</p>
+    <h1>¿Cómo juegas?</h1>
+    <div class="overlay-actions">
+      <button id="btnLocal" class="btn-wide btn-wide-primary">1 jugador (local)</button>
+      <button id="btnMultiplayer" class="btn-wide">Multijugador online</button>
+    </div>
+  </div>
+</div>
+
+<!-- MULTIPLAYER LOBBY -->
+<div id="mpLobby" class="overlay hidden">
+  <div class="overlay-card">
+    <p class="eyebrow mono">// multijugador</p>
+    <h1>Sala online</h1>
+
+    <button id="btnCreateRoom" class="btn-wide btn-wide-primary">Crear sala nueva</button>
+
+    <div class="overlay-divider"><span>o únete a una</span></div>
+
+    <div class="join-row">
+      <input id="joinCodeInput" maxlength="5" placeholder="CÓDIGO" autocomplete="off" spellcheck="false">
+      <button id="btnJoinRoom" class="btn-wide">Unirse</button>
+    </div>
+
+    <p id="lobbyStatus" class="lobby-status"></p>
+    <button id="btnBackToModeSelect" class="btn-text">← volver</button>
+  </div>
+</div>
+
+<!-- WAITING FOR OPPONENT -->
+<div id="mpWaiting" class="overlay hidden">
+  <div class="overlay-card">
+    <p class="eyebrow mono">// esperando</p>
+    <h1>Comparte este código</h1>
+    <p id="roomCodeBig" class="room-code-big"></p>
+    <p class="lobby-status">Esperando a que se una el otro jugador…</p>
+    <button id="btnCancelWaiting" class="btn-text">← cancelar</button>
+  </div>
+</div>
+
+<main class="stage hidden" id="gameStage">
   <div class="table-wrap">
     <canvas id="table" width="1000" height="500" aria-label="Mesa de billar"></canvas>
     <div id="scratchFlash" class="scratch-flash">falta — bola blanca en mano</div>
   </div>
 
   <aside class="hud">
+    <div id="mpStatusBlock" class="hud-block mp-status hidden">
+      <p class="hud-label mono">sala <span id="roomCodeSmall"></span></p>
+      <p id="turnIndicator" class="turn-indicator">—</p>
+      <p id="scoreLine" class="score-line"></p>
+    </div>
+
     <div class="hud-block">
       <p class="hud-label mono">potencia</p>
       <div class="power-meter"><div id="powerFill" class="power-fill"></div></div>
@@ -37,6 +86,7 @@
     </div>
 
     <button id="resetBtn" class="btn-reset">Reiniciar mesa</button>
+    <button id="leaveRoomBtn" class="btn-text hidden">← salir de la sala</button>
 
     <div class="hud-block instructions">
       <p class="hud-label mono">controles</p>
