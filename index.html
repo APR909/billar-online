@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Billar Online — Prototipo</title>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300..900&family=Work+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <a class="brand" href="#"><span class="brand-mark">AP</span><span class="brand-name">Billar <em>online</em></span></a>
+  <span class="build-tag mono">// prototipo · físicas locales</span>
+</header>
+
+<main class="stage">
+  <div class="table-wrap">
+    <canvas id="table" width="1000" height="500" aria-label="Mesa de billar"></canvas>
+    <div id="scratchFlash" class="scratch-flash">falta — bola blanca en mano</div>
+  </div>
+
+  <aside class="hud">
+    <div class="hud-block">
+      <p class="hud-label mono">potencia</p>
+      <div class="power-meter"><div id="powerFill" class="power-fill"></div></div>
+    </div>
+
+    <div class="hud-block">
+      <p class="hud-label mono">bolas restantes</p>
+      <p id="ballsLeft" class="hud-value">15</p>
+    </div>
+
+    <div class="hud-block potted-block">
+      <p class="hud-label mono">troneadas</p>
+      <div id="pottedTray" class="potted-tray"></div>
+    </div>
+
+    <button id="resetBtn" class="btn-reset">Reiniciar mesa</button>
+
+    <div class="hud-block instructions">
+      <p class="hud-label mono">controles</p>
+      <ul>
+        <li>Clic y arrastra desde la bola blanca para apuntar</li>
+        <li>Cuanto más tires hacia atrás, más fuerte el golpe</li>
+        <li>Suelta para tirar</li>
+      </ul>
+    </div>
+  </aside>
+</main>
+
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
