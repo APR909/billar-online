@@ -11,7 +11,7 @@ export function isSettled(balls) {
   return balls.every((b) => b.potted || b.speed < MIN_SPEED);
 }
 
-export function stepPhysics(balls, dt, onPot) {
+export function stepPhysics(balls, dt, onPot, onCollision) {
   const sub = dt / SUBSTEPS;
   for (let s = 0; s < SUBSTEPS; s++) {
     for (const b of balls) {
@@ -24,10 +24,10 @@ export function stepPhysics(balls, dt, onPot) {
     }
     for (const b of balls) {
       if (b.potted) continue;
-      resolveWalls(b);
+      resolveWalls(b, onCollision);
     }
     for (let iter = 0; iter < COLLISION_ITERATIONS; iter++) {
-      resolveBallCollisions(balls);
+      resolveBallCollisions(balls, onCollision);
     }
   }
 }
@@ -66,19 +66,41 @@ function checkPocket(b, onPot) {
   }
 }
 
-function resolveWalls(b) {
+const COLLISION_SOUND_MIN_SPEED = 25; // px/s — filters out near-zero repeat detections within one frame
+
+function resolveWalls(b, onCollision) {
   const left = PLAY_LEFT + b.r;
   const right = PLAY_RIGHT - b.r;
   const top = PLAY_TOP + b.r;
   const bottom = PLAY_BOTTOM - b.r;
 
-  if (b.x < left) { b.x = left; b.vx = -b.vx * WALL_RESTITUTION; }
-  if (b.x > right) { b.x = right; b.vx = -b.vx * WALL_RESTITUTION; }
-  if (b.y < top) { b.y = top; b.vy = -b.vy * WALL_RESTITUTION; }
-  if (b.y > bottom) { b.y = bottom; b.vy = -b.vy * WALL_RESTITUTION; }
+  if (b.x < left) {
+    const speed = Math.abs(b.vx);
+    b.x = left;
+    b.vx = -b.vx * WALL_RESTITUTION;
+    if (onCollision && speed > COLLISION_SOUND_MIN_SPEED) onCollision("cushion", speed);
+  }
+  if (b.x > right) {
+    const speed = Math.abs(b.vx);
+    b.x = right;
+    b.vx = -b.vx * WALL_RESTITUTION;
+    if (onCollision && speed > COLLISION_SOUND_MIN_SPEED) onCollision("cushion", speed);
+  }
+  if (b.y < top) {
+    const speed = Math.abs(b.vy);
+    b.y = top;
+    b.vy = -b.vy * WALL_RESTITUTION;
+    if (onCollision && speed > COLLISION_SOUND_MIN_SPEED) onCollision("cushion", speed);
+  }
+  if (b.y > bottom) {
+    const speed = Math.abs(b.vy);
+    b.y = bottom;
+    b.vy = -b.vy * WALL_RESTITUTION;
+    if (onCollision && speed > COLLISION_SOUND_MIN_SPEED) onCollision("cushion", speed);
+  }
 }
 
-function resolveBallCollisions(balls) {
+function resolveBallCollisions(balls, onCollision) {
   for (let i = 0; i < balls.length; i++) {
     const a = balls[i];
     if (a.potted) continue;
@@ -107,6 +129,9 @@ function resolveBallCollisions(balls) {
       const rvy = b.vy - a.vy;
       const relVelAlongNormal = rvx * nx + rvy * ny;
       if (relVelAlongNormal > 0) continue; // already separating
+
+      const impactSpeed = Math.abs(relVelAlongNormal);
+      if (onCollision && impactSpeed > COLLISION_SOUND_MIN_SPEED) onCollision("ball", impactSpeed);
 
       const impulse = -(1 + BALL_RESTITUTION) * relVelAlongNormal / 2; // equal mass
       a.vx -= impulse * nx;

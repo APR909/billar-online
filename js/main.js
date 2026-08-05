@@ -1,7 +1,8 @@
 import { drawTable, PLAY_LEFT, PLAY_RIGHT, PLAY_TOP, PLAY_BOTTOM } from "./table.js";
 import { createRack } from "./rack.js";
 import { stepPhysics, isSettled } from "./physics.js";
-import { createInput, drawAim } from "./input.js";
+import { createInput, drawAim, MAX_SHOT_SPEED } from "./input.js";
+import { playStrike, playBallHit, playCushionHit, playPot } from "./sound.js";
 
 // =========================================================
 // DOM
@@ -119,6 +120,7 @@ function onPot(ball) {
     awaitingRespawn = true;
     return;
   }
+  playPot();
   pottedThisShot.push(ball);
   const chip = document.createElement("div");
   chip.className = "potted-ball";
@@ -152,6 +154,7 @@ const input = createInput(
   (vx, vy) => {
     cue.vx = vx;
     cue.vy = vy;
+    playStrike(Math.min(1, Math.hypot(vx, vy) / MAX_SHOT_SPEED));
     if (mp) {
       net.sendShot(mp.code, mp.playerId, vx, vy);
       settleWatcher.armForLocalShot(true);
@@ -331,6 +334,11 @@ initNetwork()
   .then(() => net.listenLeaderboard(renderLeaderboard))
   .catch(() => {});
 
+function onCollisionSound(kind, impactSpeed) {
+  if (kind === "ball") playBallHit(impactSpeed);
+  else playCushionHit(impactSpeed);
+}
+
 // =========================================================
 // MAIN LOOP
 // =========================================================
@@ -339,7 +347,7 @@ function loop(now) {
   const dt = Math.min((now - lastTime) / 1000, 1 / 30);
   lastTime = now;
 
-  stepPhysics(balls, dt, onPot);
+  stepPhysics(balls, dt, onPot, onCollisionSound);
   respawnCueIfNeeded();
   settleWatcher.tick();
 

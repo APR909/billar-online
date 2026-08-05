@@ -1,5 +1,5 @@
 const MAX_DRAG = 130;      // px of drag = full power
-const MAX_SHOT_SPEED = 900; // px/s at full power
+export const MAX_SHOT_SPEED = 900; // px/s at full power
 
 export function createInput(canvas, getCueBall, canShoot, onShoot) {
   const state = {
