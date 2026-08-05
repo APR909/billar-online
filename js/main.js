@@ -31,6 +31,14 @@ const btnGoogleSignIn = document.getElementById("btnGoogleSignIn");
 const googleProfileEl = document.getElementById("googleProfile");
 const googleAvatarEl = document.getElementById("googleAvatar");
 const googleNameEl = document.getElementById("googleName");
+const matchTimerEl = document.getElementById("matchTimer");
+const leaderboardListEl = document.getElementById("leaderboardList");
+const completionOverlayEl = document.getElementById("completionOverlay");
+const completionTimeEl = document.getElementById("completionTime");
+const completionNameInput = document.getElementById("completionName");
+const completionStatusEl = document.getElementById("completionStatus");
+const btnSubmitScore = document.getElementById("btnSubmitScore");
+const btnSkipScore = document.getElementById("btnSkipScore");
 
 // =========================================================
 // GAME STATE
@@ -42,7 +50,12 @@ let awaitingRespawn = false;
 
 // multiplayer state (null when playing locally)
 let mp = null; // { code, playerId, unsubscribe, currentTurn, opponentGone, myName, opponentName }
-let net = null; // lazily-loaded network module (only imported if multiplayer is chosen)
+let net = null; // network module, loaded eagerly at startup (see initNetwork below)
+
+// match timer / completion state
+let matchStartTime = null;
+let matchElapsedFrozen = null;
+let gameCompleted = false;
 
 function screen(name) {
   modeSelectEl.classList.toggle("hidden", name !== "modeSelect");
@@ -61,12 +74,26 @@ function newGame(rackOrder) {
   pottedTrayEl.innerHTML = "";
   pottedThisShot = [];
   awaitingRespawn = false;
+  matchStartTime = performance.now();
+  matchElapsedFrozen = null;
+  gameCompleted = false;
+  completionOverlayEl.classList.add("hidden");
   updateBallsLeft();
 }
 
+function ballsRemaining() {
+  return balls.filter((b) => !b.potted && !b.isCue).length;
+}
+
+function formatTime(ms) {
+  const total = Math.max(0, Math.floor(ms / 1000));
+  const m = String(Math.floor(total / 60)).padStart(2, "0");
+  const s = String(total % 60).padStart(2, "0");
+  return `${m}:${s}`;
+}
+
 function updateBallsLeft() {
-  const remaining = balls.filter((b) => !b.potted && !b.isCue).length;
-  ballsLeftEl.textContent = String(remaining);
+  ballsLeftEl.textContent = String(ballsRemaining());
 }
 
 function flashScratch() {
@@ -218,6 +245,93 @@ function showGoogleProfile(profile) {
 }
 
 // =========================================================
+// MATCH COMPLETION + LEADERBOARD
+// =========================================================
+function checkGameCompletion() {
+  if (gameCompleted || balls.length === 0 || matchStartTime === null) return;
+  if (ballsRemaining() > 0) return;
+  if (!isSettled(balls) || awaitingRespawn) return;
+
+  gameCompleted = true;
+  matchElapsedFrozen = performance.now() - matchStartTime;
+  completionTimeEl.textContent = formatTime(matchElapsedFrozen);
+  completionStatusEl.textContent = "";
+  completionNameInput.value = (net && net.getProfile()?.name) || mp?.myName || "";
+  btnSubmitScore.disabled = false;
+  completionOverlayEl.classList.remove("hidden");
+}
+
+btnSubmitScore.addEventListener("click", async () => {
+  btnSubmitScore.disabled = true;
+  completionStatusEl.textContent = "Guardando…";
+  completionStatusEl.className = "lobby-status";
+  try {
+    await initNetwork();
+    await net.submitScore(completionNameInput.value, matchElapsedFrozen);
+    completionStatusEl.textContent = "¡Guardado en el ranking!";
+    setTimeout(() => completionOverlayEl.classList.add("hidden"), 1100);
+  } catch (e) {
+    console.error(e);
+    completionStatusEl.textContent = "No se pudo guardar. Inténtalo de nuevo.";
+    completionStatusEl.className = "lobby-status error";
+    btnSubmitScore.disabled = false;
+  }
+});
+
+btnSkipScore.addEventListener("click", () => {
+  completionOverlayEl.classList.add("hidden");
+});
+
+function renderLeaderboard(rows) {
+  if (!rows || rows.length === 0) {
+    leaderboardListEl.innerHTML = '<li class="leaderboard-empty">Todavía no hay tiempos. ¡Sé el primero!</li>';
+    return;
+  }
+  leaderboardListEl.innerHTML = rows
+    .map(
+      (r, i) => `
+      <li>
+        <span class="lb-rank">${i + 1}</span>
+        <span class="lb-name">${escapeHtml(r.name || "Jugador")}</span>
+        <span class="lb-time mono">${formatTime(r.timeMs)}</span>
+      </li>`
+    )
+    .join("");
+}
+
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+// =========================================================
+// NETWORK MODULE — loaded eagerly (needed for the global
+// leaderboard even in local single-player mode), but failures
+// degrade gracefully instead of breaking the whole page.
+// =========================================================
+let netReadyPromise = null;
+function initNetwork() {
+  if (!netReadyPromise) {
+    netReadyPromise = import("./network.js")
+      .then((mod) => {
+        net = mod;
+        return mod;
+      })
+      .catch((e) => {
+        console.error(e);
+        leaderboardListEl.innerHTML = '<li class="leaderboard-empty">Ranking no disponible ahora mismo.</li>';
+        throw e;
+      });
+  }
+  return netReadyPromise;
+}
+
+initNetwork()
+  .then(() => net.listenLeaderboard(renderLeaderboard))
+  .catch(() => {});
+
+// =========================================================
 // MAIN LOOP
 // =========================================================
 let lastTime = performance.now();
@@ -228,6 +342,13 @@ function loop(now) {
   stepPhysics(balls, dt, onPot);
   respawnCueIfNeeded();
   settleWatcher.tick();
+
+  if (matchStartTime !== null) {
+    matchTimerEl.textContent = gameCompleted
+      ? formatTime(matchElapsedFrozen)
+      : formatTime(performance.now() - matchStartTime);
+  }
+  checkGameCompletion();
 
   drawTable(ctx);
   for (const b of balls) b.draw(ctx);
@@ -255,7 +376,7 @@ document.getElementById("btnMultiplayer").addEventListener("click", async () => 
   lobbyStatusEl.textContent = "Cargando…";
   lobbyStatusEl.className = "lobby-status";
   try {
-    net = await import("./network.js");
+    await initNetwork();
     lobbyStatusEl.textContent = "";
     showGoogleProfile(net.getProfile());
     screen("mpLobby");

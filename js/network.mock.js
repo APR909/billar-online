@@ -1,8 +1,6 @@
 // TEST-ONLY MOCK — simulates the real network.js API using localStorage +
 // storage events (shared across tabs in the same browser context), so the
-// multiplayer flow can be tested without touching the real Firebase project.
-// Not used by the game (main.js imports "./network.js"); kept here so you
-// can swap it back in for quick local testing later if you want.
+// multiplayer flow can be tested without a real Firebase project.
 import { generateRackOrder } from "./rack.js";
 
 let mockProfile = null;
@@ -60,6 +58,7 @@ export function listenRoom(code, callbacks) {
     if (room.correction) callbacks.onCorrection?.(room.correction);
   };
   window.addEventListener("storage", handler);
+  // fire once immediately with current state (mimics Firebase onValue's initial call)
   handler();
   return () => window.removeEventListener("storage", handler);
 }
@@ -86,4 +85,31 @@ export async function leaveRoom(code, playerId) {
   delete room.players[playerId];
   writeRoom(code, room);
   window.dispatchEvent(new StorageEvent("storage", { key: key(code) }));
+}
+
+// ---------- leaderboard ----------
+const LB_KEY = "mock_leaderboard";
+function readLB() { return JSON.parse(localStorage.getItem(LB_KEY) || "[]"); }
+function writeLB(rows) { localStorage.setItem(LB_KEY, JSON.stringify(rows)); }
+
+export async function submitScore(name, timeMs) {
+  const rows = readLB();
+  rows.push({
+    id: String(Date.now()) + Math.random(),
+    name: (name || "Jugador").trim().slice(0, 24) || "Jugador",
+    timeMs: Math.round(timeMs),
+    createdAt: Date.now(),
+  });
+  writeLB(rows);
+  window.dispatchEvent(new StorageEvent("storage", { key: LB_KEY }));
+}
+
+export function listenLeaderboard(callback, max = 10) {
+  const handler = () => {
+    const rows = readLB().sort((a, b) => a.timeMs - b.timeMs).slice(0, max);
+    callback(rows);
+  };
+  window.addEventListener("storage", handler);
+  handler();
+  return () => window.removeEventListener("storage", handler);
 }

@@ -86,6 +86,11 @@
     </div>
 
     <div class="hud-block">
+      <p class="hud-label mono">tiempo de partida</p>
+      <p id="matchTimer" class="hud-value mono">00:00</p>
+    </div>
+
+    <div class="hud-block">
       <p class="hud-label mono">potencia</p>
       <div class="power-meter"><div id="powerFill" class="power-fill"></div></div>
     </div>
@@ -112,7 +117,32 @@
       </ul>
     </div>
   </aside>
+
+  <aside class="leaderboard">
+    <p class="hud-label mono">ranking · mejor tiempo</p>
+    <ol id="leaderboardList" class="leaderboard-list">
+      <li class="leaderboard-empty">Cargando…</li>
+    </ol>
+  </aside>
 </main>
+
+<!-- GAME COMPLETE -->
+<div id="completionOverlay" class="completion-overlay hidden">
+  <div class="overlay-card">
+    <p class="eyebrow mono">// mesa despejada</p>
+    <h1>¡Partida completada!</h1>
+    <p id="completionTime" class="completion-time mono">00:00</p>
+
+    <label class="completion-label" for="completionName">Tu nombre para el ranking</label>
+    <input id="completionName" class="completion-input" maxlength="24" placeholder="Tu nombre" autocomplete="off">
+
+    <div class="overlay-actions">
+      <button id="btnSubmitScore" class="btn-wide btn-wide-primary">Guardar en el ranking</button>
+      <button id="btnSkipScore" class="btn-text">Seguir sin guardar</button>
+    </div>
+    <p id="completionStatus" class="lobby-status"></p>
+  </div>
+</div>
 
 <script type="module" src="js/main.js"></script>
 </body>

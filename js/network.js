@@ -15,6 +15,8 @@
 //   leaveRoom(code, playerId)
 //   signInWithGoogle() -> { name, photo }
 //   getProfile() -> { name, photo } | null   (null = playing as guest)
+//   submitScore(name, timeMs)
+//   listenLeaderboard(callback, max) -> unsubscribe()
 //
 // Sync model: turn-based, so we never stream continuous ball
 // positions. The shooter simulates locally and writes {vx, vy}
@@ -40,6 +42,10 @@ import {
   set,
   update,
   get,
+  push,
+  query,
+  orderByChild,
+  limitToFirst,
   onValue,
   remove,
   onDisconnect,
@@ -185,4 +191,26 @@ export async function leaveRoom(code, playerId) {
   } catch (e) {
     // room may already be gone — fine to ignore
   }
+}
+
+// ---------- leaderboard ----------
+export async function submitScore(name, timeMs) {
+  await ensureSignedIn();
+  const cleanName = (name || "Jugador").trim().slice(0, 24) || "Jugador";
+  await set(push(ref(db, "leaderboard")), {
+    name: cleanName,
+    timeMs: Math.round(timeMs),
+    createdAt: Date.now(),
+  });
+}
+
+export function listenLeaderboard(callback, max = 10) {
+  const q = query(ref(db, "leaderboard"), orderByChild("timeMs"), limitToFirst(max));
+  const unsub = onValue(q, (snap) => {
+    const rows = [];
+    snap.forEach((child) => rows.push({ id: child.key, ...child.val() }));
+    rows.sort((a, b) => a.timeMs - b.timeMs);
+    callback(rows);
+  });
+  return unsub;
 }
