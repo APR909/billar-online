@@ -25,6 +25,97 @@ export const POCKETS = [
   { x: PLAY_RIGHT, y: PLAY_BOTTOM },
 ].map((p) => ({ ...p, r: POCKET_RADIUS }));
 
+// ---------- veins along the rail — generated once, redrawn every frame ----------
+function seededRandom(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 1103515245 + 12345) & 0x7fffffff;
+    return s / 0x7fffffff;
+  };
+}
+
+function generateVeins() {
+  const rand = seededRandom(1337);
+  const inset = RAIL / 2;
+  const jitter = 7;
+  const step = 16;
+  const margin = 6;
+
+  const main = [];
+  for (let x = RAIL + margin; x <= CANVAS_W - RAIL - margin; x += step) {
+    main.push({ x, y: inset + (rand() - 0.5) * jitter * 2 });
+  }
+  for (let y = RAIL + margin; y <= CANVAS_H - RAIL - margin; y += step) {
+    main.push({ x: CANVAS_W - inset + (rand() - 0.5) * jitter * 2, y });
+  }
+  for (let x = CANVAS_W - RAIL - margin; x >= RAIL + margin; x -= step) {
+    main.push({ x, y: CANVAS_H - inset + (rand() - 0.5) * jitter * 2 });
+  }
+  for (let y = CANVAS_H - RAIL - margin; y >= RAIL + margin; y -= step) {
+    main.push({ x: inset + (rand() - 0.5) * jitter * 2, y });
+  }
+  if (main.length) main.push(main[0]);
+
+  const branches = [];
+  main.forEach((p) => {
+    if (rand() < 0.14) {
+      const len = 7 + rand() * 9;
+      const angle = rand() * Math.PI * 2;
+      const midAngle = angle + (rand() - 0.5) * 0.8;
+      const midLen = len * (0.5 + rand() * 0.3);
+      branches.push([
+        { x: p.x, y: p.y },
+        { x: p.x + Math.cos(midAngle) * midLen, y: p.y + Math.sin(midAngle) * midLen },
+        { x: p.x + Math.cos(angle) * len, y: p.y + Math.sin(angle) * len },
+      ]);
+    }
+  });
+
+  return { main, branches };
+}
+
+const VEINS = generateVeins();
+
+function strokeSmoothPath(ctx, points) {
+  if (points.length < 2) return;
+  ctx.beginPath();
+  ctx.moveTo(points[0].x, points[0].y);
+  for (let i = 1; i < points.length - 1; i++) {
+    const mx = (points[i].x + points[i + 1].x) / 2;
+    const my = (points[i].y + points[i + 1].y) / 2;
+    ctx.quadraticCurveTo(points[i].x, points[i].y, mx, my);
+  }
+  const last = points[points.length - 1];
+  ctx.lineTo(last.x, last.y);
+  ctx.stroke();
+}
+
+function drawVeins(ctx) {
+  ctx.save();
+  ctx.lineJoin = "round";
+  ctx.lineCap = "round";
+
+  // soft glow pass
+  ctx.strokeStyle = "rgba(255,70,20,0.32)";
+  ctx.lineWidth = 5;
+  ctx.shadowColor = "rgba(255,60,10,0.9)";
+  ctx.shadowBlur = 8;
+  strokeSmoothPath(ctx, VEINS.main);
+
+  // bright core line
+  ctx.shadowBlur = 0;
+  ctx.strokeStyle = "rgba(255,125,55,0.85)";
+  ctx.lineWidth = 1.4;
+  strokeSmoothPath(ctx, VEINS.main);
+
+  // small branching offshoots
+  ctx.lineWidth = 1;
+  ctx.strokeStyle = "rgba(255,95,35,0.55)";
+  VEINS.branches.forEach((b) => strokeSmoothPath(ctx, b));
+
+  ctx.restore();
+}
+
 export function drawTable(ctx) {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
@@ -35,6 +126,8 @@ export function drawTable(ctx) {
   ctx.fillStyle = woodGrad;
   roundRect(ctx, 0, 0, CANVAS_W, CANVAS_H, 18);
   ctx.fill();
+
+  drawVeins(ctx);
 
   // cloth (slightly inset from rail, pockets cut as darker circles at the seam)
   const clothLeft = RAIL;
