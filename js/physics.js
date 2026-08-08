@@ -1,8 +1,8 @@
 import { PLAY_LEFT, PLAY_RIGHT, PLAY_TOP, PLAY_BOTTOM, POCKETS, BALL_RADIUS } from "./table.js";
 
-const FRICTION_DECEL = 140;     // px/s^2 rolling deceleration
+const FRICTION_DECEL = 95;      // px/s^2 rolling deceleration — lighter balls, roll further per shot
 const MIN_SPEED = 6;            // snap to rest below this (px/s)
-const WALL_RESTITUTION = 0.86;
+const WALL_RESTITUTION = 0.90;
 const BALL_RESTITUTION = 0.98;
 const SUBSTEPS = 8;
 const COLLISION_ITERATIONS = 3; // extra passes per substep so impulses propagate through packed clusters (e.g. the break)
