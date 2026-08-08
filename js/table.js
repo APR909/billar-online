@@ -28,10 +28,10 @@ export const POCKETS = [
 export function drawTable(ctx) {
   ctx.clearRect(0, 0, CANVAS_W, CANVAS_H);
 
-  // outer wood rail
+  // outer rail — charred obsidian with a warm ember undertone
   const woodGrad = ctx.createLinearGradient(0, 0, 0, CANVAS_H);
-  woodGrad.addColorStop(0, "#3a1f14");
-  woodGrad.addColorStop(1, "#241009");
+  woodGrad.addColorStop(0, "#2a0f0f");
+  woodGrad.addColorStop(1, "#140505");
   ctx.fillStyle = woodGrad;
   roundRect(ctx, 0, 0, CANVAS_W, CANVAS_H, 18);
   ctx.fill();
@@ -46,8 +46,8 @@ export function drawTable(ctx) {
     CANVAS_W / 2, CANVAS_H / 2, 40,
     CANVAS_W / 2, CANVAS_H / 2, CANVAS_W / 1.3
   );
-  clothGrad.addColorStop(0, "#1c6b46");
-  clothGrad.addColorStop(1, "#0e3f28");
+  clothGrad.addColorStop(0, "#8c1420");
+  clothGrad.addColorStop(1, "#2e0509");
   ctx.fillStyle = clothGrad;
   ctx.fillRect(clothLeft, clothTop, clothRight - clothLeft, clothBottom - clothTop);
 
@@ -65,16 +65,33 @@ export function drawTable(ctx) {
     ctx.fill();
   });
 
-  // pockets
+  // pockets — hexagonal, with a faint ember rim
   POCKETS.forEach((p) => {
     const g = ctx.createRadialGradient(p.x, p.y, 2, p.x, p.y, p.r);
     g.addColorStop(0, "#000000");
-    g.addColorStop(1, "#1a1a1a");
+    g.addColorStop(0.75, "#1a0505");
+    g.addColorStop(1, "#3a0a0a");
     ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+    hexagonPath(ctx, p.x, p.y, p.r);
     ctx.fill();
+
+    ctx.strokeStyle = "rgba(255,90,40,0.55)";
+    ctx.lineWidth = 1.6;
+    hexagonPath(ctx, p.x, p.y, p.r - 1);
+    ctx.stroke();
   });
+}
+
+function hexagonPath(ctx, cx, cy, r) {
+  ctx.beginPath();
+  for (let i = 0; i < 6; i++) {
+    const angle = (Math.PI / 3) * i - Math.PI / 2; // pointy-top hexagon
+    const x = cx + r * Math.cos(angle);
+    const y = cy + r * Math.sin(angle);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
 }
 
 function roundRect(ctx, x, y, w, h, r) {

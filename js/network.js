@@ -15,8 +15,6 @@
 //   leaveRoom(code, playerId)
 //   signInWithGoogle() -> { name, photo }
 //   getProfile() -> { name, photo } | null   (null = playing as guest)
-//   submitScore(name, timeMs)
-//   listenLeaderboard(callback, max) -> unsubscribe()
 //
 // Sync model: turn-based, so we never stream continuous ball
 // positions. The shooter simulates locally and writes {vx, vy}
