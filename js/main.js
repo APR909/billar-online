@@ -17,6 +17,7 @@ const scratchFlashEl = document.getElementById("scratchFlash");
 const resetBtn = document.getElementById("resetBtn");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
 
+const titleScreenEl = document.getElementById("titleScreen");
 const modeSelectEl = document.getElementById("modeSelect");
 const mpLobbyEl = document.getElementById("mpLobby");
 const mpWaitingEl = document.getElementById("mpWaiting");
@@ -517,4 +518,7 @@ function startMultiplayerGame() {
   });
 }
 
-screen("modeSelect");
+document.getElementById("btnTitleContinue").addEventListener("click", () => {
+  titleScreenEl.classList.add("hidden");
+  screen("modeSelect");
+});
