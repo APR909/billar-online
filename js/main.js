@@ -16,8 +16,17 @@ const pottedTrayEl = document.getElementById("pottedTray");
 const scratchFlashEl = document.getElementById("scratchFlash");
 const resetBtn = document.getElementById("resetBtn");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
+const statusFaceEl = document.getElementById("statusFace");
+const statusFaceImgEl = document.getElementById("statusFaceImg");
 
 const titleScreenEl = document.getElementById("titleScreen");
+const titleDemonImg = document.getElementById("titleDemonImg");
+
+let titleMouthOpen = false;
+const titleMouthTimer = setInterval(() => {
+  titleMouthOpen = !titleMouthOpen;
+  titleDemonImg.src = titleMouthOpen ? "assets/face-title-open.png" : "assets/face-title-closed.png";
+}, 550);
 const modeSelectEl = document.getElementById("modeSelect");
 const mpLobbyEl = document.getElementById("mpLobby");
 const mpWaitingEl = document.getElementById("mpWaiting");
@@ -48,6 +57,7 @@ const btnSkipScore = document.getElementById("btnSkipScore");
 let balls = [];
 let cue = null;
 let pottedThisShot = [];
+let scratchedThisShot = false;
 let awaitingRespawn = false;
 
 // multiplayer state (null when playing locally)
@@ -58,6 +68,24 @@ let net = null; // network module, loaded eagerly at startup (see initNetwork be
 let matchStartTime = null;
 let matchElapsedFrozen = null;
 let gameCompleted = false;
+
+// status face (Doom-style reactive portrait)
+let faceState = "idle";
+let faceLockUntil = 0;
+let faceFinal = null; // "victory" | "defeat" once the match is decided — overrides everything else
+let lastShotWasMine = true; // who most recently potted/missed — decides victory vs defeat face
+
+function setFace(state, holdMs) {
+  faceState = state;
+  faceLockUntil = holdMs ? performance.now() + holdMs : 0;
+  const src = `assets/face-${state}.png`;
+  if (statusFaceImgEl.getAttribute("src") !== src) statusFaceImgEl.src = src;
+}
+
+function updateFaceColor() {
+  statusFaceEl.classList.remove("player-p1", "player-p2");
+  if (mp) statusFaceEl.classList.add(mp.playerId === "p1" ? "player-p1" : "player-p2");
+}
 
 function screen(name) {
   modeSelectEl.classList.toggle("hidden", name !== "modeSelect");
@@ -75,10 +103,14 @@ function newGame(rackOrder) {
   cue = rack.cue;
   pottedTrayEl.innerHTML = "";
   pottedThisShot = [];
+  scratchedThisShot = false;
   awaitingRespawn = false;
   matchStartTime = performance.now();
   matchElapsedFrozen = null;
   gameCompleted = false;
+  faceFinal = null;
+  setFace("idle");
+  updateFaceColor();
   completionOverlayEl.classList.add("hidden");
   updateBallsLeft();
 }
@@ -119,6 +151,7 @@ function rebuildTrayFromState() {
 function onPot(ball) {
   if (ball.isCue) {
     awaitingRespawn = true;
+    scratchedThisShot = true;
     return;
   }
   playPot();
@@ -156,9 +189,10 @@ const input = createInput(
     cue.vx = vx;
     cue.vy = vy;
     playStrike(Math.min(1, Math.hypot(vx, vy) / MAX_SHOT_SPEED));
+    scratchedThisShot = false;
+    settleWatcher.armForLocalShot(true);
     if (mp) {
       net.sendShot(mp.code, mp.playerId, vx, vy);
-      settleWatcher.armForLocalShot(true);
     }
   }
 );
@@ -180,18 +214,31 @@ const settleWatcher = (() => {
       isAuthoritative = authoritative;
     },
     tick() {
-      if (!mp || !waitingForLocalSettle) return;
+      if (!waitingForLocalSettle) return;
       if (!isSettled(balls) || awaitingRespawn) return;
       waitingForLocalSettle = false;
 
       if (!isAuthoritative) {
-        // just replaying the opponent's shot locally — they own the correction/turn-pass
+        // just replaying the opponent's shot locally — react from my side of the table,
+        // then let them own the correction/turn-pass
+        lastShotWasMine = false;
+        if (pottedThisShot.length > 0) setFace("hurt", 1400); // they scored — bad for me
+        else setFace("happy", 1400); // they whiffed — good for me
+        pottedThisShot = [];
+        return;
+      }
+
+      lastShotWasMine = true;
+      const gained = pottedThisShot.filter((b) => b.number !== 8).length;
+      if (gained > 0) setFace("happy", 1400);
+      else setFace("hurt", 1400);
+
+      if (!mp) {
         pottedThisShot = [];
         return;
       }
 
       const nextTurn = mp.playerId === "p1" ? "p2" : "p1";
-      const gained = pottedThisShot.filter((b) => b.number !== 8).length;
       pottedThisShot = [];
       mp.myScore += gained;
       mp.currentTurn = nextTurn; // optimistic local update so input disables immediately
@@ -257,6 +304,8 @@ function checkGameCompletion() {
   if (!isSettled(balls) || awaitingRespawn) return;
 
   gameCompleted = true;
+  faceFinal = !mp || lastShotWasMine ? "victory" : "defeat";
+  setFace(faceFinal);
   matchElapsedFrozen = performance.now() - matchStartTime;
   completionTimeEl.textContent = formatTime(matchElapsedFrozen);
   completionStatusEl.textContent = "";
@@ -364,6 +413,12 @@ function loop(now) {
   drawAim(ctx, cue, input);
 
   powerFillEl.style.width = `${Math.round(input.power * 100)}%`;
+
+  if (faceFinal) {
+    if (faceState !== faceFinal) setFace(faceFinal);
+  } else if (performance.now() >= faceLockUntil) {
+    setFace(input.dragging ? "aiming" : "idle");
+  }
 
   requestAnimationFrame(loop);
 }
@@ -519,6 +574,7 @@ function startMultiplayerGame() {
 }
 
 document.getElementById("btnTitleContinue").addEventListener("click", () => {
+  clearInterval(titleMouthTimer);
   titleScreenEl.classList.add("hidden");
   screen("modeSelect");
 });

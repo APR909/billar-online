@@ -17,7 +17,10 @@
 <!-- TITLE SCREEN -->
 <div id="titleScreen" class="overlay">
   <div class="overlay-card title-card">
-    <img src="assets/demon-icon.png" alt="" class="demon-logo demon-logo-title">
+    <div class="demon-logo-wrap demon-logo-title-wrap">
+      <img id="titleDemonImg" src="assets/face-title-closed.png" alt="" class="demon-logo demon-logo-title">
+      <img src="assets/face-title-closed.png" alt="" class="demon-logo demon-logo-title demon-eye-glow" aria-hidden="true">
+    </div>
     <h1 class="title-huge">HELL'S POOL</h1>
     <p class="eyebrow mono title-sub">// prototipo · físicas locales</p>
     <button id="btnTitleContinue" class="btn-wide btn-wide-primary">Continuar</button>
@@ -27,7 +30,7 @@
 <!-- MODE SELECT -->
 <div id="modeSelect" class="overlay hidden">
   <div class="overlay-card">
-    <img src="assets/demon-icon.png" alt="" class="demon-logo">
+    <img src="assets/face-idle.png" alt="" class="demon-logo">
     <p class="eyebrow mono">// elige modo</p>
     <h1>¿Cómo juegas?</h1>
     <div class="overlay-actions">
@@ -87,6 +90,9 @@
   <div class="table-wrap">
     <canvas id="table" width="1000" height="500" aria-label="Mesa de billar"></canvas>
     <div id="scratchFlash" class="scratch-flash">falta — bola blanca en mano</div>
+    <div id="statusFace" class="status-face">
+      <img id="statusFaceImg" src="assets/face-idle.png" alt="" class="status-face-img">
+    </div>
   </div>
 
   <aside class="hud">
