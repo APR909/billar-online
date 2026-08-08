@@ -87,12 +87,16 @@
 </div>
 
 <main class="stage hidden" id="gameStage">
-  <div class="table-wrap">
-    <canvas id="table" width="1000" height="500" aria-label="Mesa de billar"></canvas>
-    <div id="scratchFlash" class="scratch-flash">falta — bola blanca en mano</div>
+  <div class="status-face-panel">
     <div id="statusFace" class="status-face">
       <img id="statusFaceImg" src="assets/face-idle.png" alt="" class="status-face-img">
     </div>
+    <p class="status-face-label mono">visor</p>
+  </div>
+
+  <div class="table-wrap">
+    <canvas id="table" width="1000" height="500" aria-label="Mesa de billar"></canvas>
+    <div id="scratchFlash" class="scratch-flash">falta — bola blanca en mano</div>
   </div>
 
   <aside class="hud">
