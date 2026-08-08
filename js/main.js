@@ -111,6 +111,7 @@ function newGame(rackOrder) {
   faceFinal = null;
   setFace("idle");
   updateFaceColor();
+  settleWatcher.reset();
   completionOverlayEl.classList.add("hidden");
   updateBallsLeft();
 }
@@ -213,6 +214,9 @@ const settleWatcher = (() => {
       waitingForLocalSettle = true;
       isAuthoritative = authoritative;
     },
+    reset() {
+      waitingForLocalSettle = false;
+    },
     tick() {
       if (!waitingForLocalSettle) return;
       if (!isSettled(balls) || awaitingRespawn) return;
@@ -230,7 +234,7 @@ const settleWatcher = (() => {
 
       lastShotWasMine = true;
       const gained = pottedThisShot.filter((b) => b.number !== 8).length;
-      if (gained > 0) setFace("happy", 1400);
+      if (pottedThisShot.length > 0) setFace("happy", 1400);
       else setFace("hurt", 1400);
 
       if (!mp) {
@@ -437,13 +441,13 @@ document.getElementById("btnLocal").addEventListener("click", () => {
 });
 
 document.getElementById("btnMultiplayer").addEventListener("click", async () => {
+  screen("mpLobby");
   lobbyStatusEl.textContent = "Cargando…";
   lobbyStatusEl.className = "lobby-status";
   try {
     await initNetwork();
     lobbyStatusEl.textContent = "";
     showGoogleProfile(net.getProfile());
-    screen("mpLobby");
   } catch (e) {
     console.error(e);
     lobbyStatusEl.textContent = "No se pudo conectar. ¿Configuraste firebase-config.js?";

@@ -1,19 +1,19 @@
 // ============================================================
 // TABLE GEOMETRY
 // ============================================================
-export const CANVAS_W = 1000;
-export const CANVAS_H = 500;
+export const CANVAS_W = 1160;
+export const CANVAS_H = 580;
 
-export const RAIL = 30;          // wooden rail thickness
-export const CUSHION = 14;       // extra cushion inset beyond rail
+export const RAIL = 35;          // wooden rail thickness
+export const CUSHION = 16;       // extra cushion inset beyond rail
 
 export const PLAY_LEFT = RAIL + CUSHION;
 export const PLAY_TOP = RAIL + CUSHION;
 export const PLAY_RIGHT = CANVAS_W - RAIL - CUSHION;
 export const PLAY_BOTTOM = CANVAS_H - RAIL - CUSHION;
 
-export const BALL_RADIUS = 11;
-export const POCKET_RADIUS = 24;
+export const BALL_RADIUS = 13;
+export const POCKET_RADIUS = 28;
 
 // 6 pockets: 4 corners + 2 mid-rail
 export const POCKETS = [
