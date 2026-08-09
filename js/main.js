@@ -18,6 +18,7 @@ const resetBtn = document.getElementById("resetBtn");
 const leaveRoomBtn = document.getElementById("leaveRoomBtn");
 const statusFaceEl = document.getElementById("statusFace");
 const statusFaceImgEl = document.getElementById("statusFaceImg");
+const waitingSkullsEl = document.getElementById("waitingSkulls");
 
 const titleScreenEl = document.getElementById("titleScreen");
 const titleDemonImg = document.getElementById("titleDemonImg");
@@ -63,6 +64,14 @@ let awaitingRespawn = false;
 // multiplayer state (null when playing locally)
 let mp = null; // { code, playerId, unsubscribe, currentTurn, opponentGone, myName, opponentName }
 let net = null; // network module, loaded eagerly at startup (see initNetwork below)
+
+const SLOT_ORDER = ["p1", "p2", "p3", "p4"];
+const PLAYER_COLORS = {
+  p1: "#E4283C", // red — brand
+  p2: "#4DD0FF", // cold blue
+  p3: "#7CFF6B", // toxic green
+  p4: "#C77DFF", // violet
+};
 
 // match timer / completion state
 let matchStartTime = null;
@@ -208,17 +217,27 @@ resetBtn.addEventListener("click", () => newGame(mp ? mp.rackOrderShared : undef
 const settleWatcher = (() => {
   let waitingForLocalSettle = false;
   let isAuthoritative = false;
+  let waitStartedAt = 0;
+  const MAX_WAIT_MS = 10000; // safety net — force-settle if physics never fully decays
 
   return {
     armForLocalShot(authoritative) {
       waitingForLocalSettle = true;
       isAuthoritative = authoritative;
+      waitStartedAt = performance.now();
     },
     reset() {
       waitingForLocalSettle = false;
     },
     tick() {
       if (!waitingForLocalSettle) return;
+
+      if (performance.now() - waitStartedAt > MAX_WAIT_MS) {
+        // extremely rare — a ball kept re-colliding without ever fully decaying.
+        // snap everything to rest so the game can't get stuck forever.
+        balls.forEach((b) => { b.vx = 0; b.vy = 0; });
+      }
+
       if (!isSettled(balls) || awaitingRespawn) return;
       waitingForLocalSettle = false;
 
@@ -242,7 +261,7 @@ const settleWatcher = (() => {
         return;
       }
 
-      const nextTurn = mp.playerId === "p1" ? "p2" : "p1";
+      const nextTurn = nextActiveTurn(mp.playerId);
       pottedThisShot = [];
       mp.myScore += gained;
       mp.currentTurn = nextTurn; // optimistic local update so input disables immediately
@@ -271,23 +290,59 @@ function applyCorrection(snapshot) {
   rebuildTrayFromState();
 }
 
+function activeSlots() {
+  return SLOT_ORDER.filter((s) => mp?.players?.[s]);
+}
+
+function nextActiveTurn(fromSlot) {
+  const active = activeSlots();
+  if (active.length === 0) return fromSlot;
+  const i = active.indexOf(fromSlot);
+  return active[(i + 1) % active.length];
+}
+
 function updateTurnUI() {
   if (!mp) return;
   if (mp.opponentGone) {
-    turnIndicatorEl.textContent = "rival desconectado";
+    turnIndicatorEl.textContent = "esperando jugadores…";
     turnIndicatorEl.className = "turn-indicator";
-    return;
+  } else {
+    const myTurn = mp.currentTurn === mp.playerId;
+    const shooterName = mp.players?.[mp.currentTurn]?.name || "otro jugador";
+    turnIndicatorEl.textContent = myTurn ? "tu turno" : `turno de ${shooterName}`;
+    turnIndicatorEl.className = "turn-indicator " + (myTurn ? "my-turn" : "their-turn");
   }
-  const myTurn = mp.currentTurn === mp.playerId;
-  turnIndicatorEl.textContent = myTurn ? "tu turno" : `turno de ${mp.opponentName || "tu rival"}`;
-  turnIndicatorEl.className = "turn-indicator " + (myTurn ? "my-turn" : "their-turn");
+  renderWaitingSkulls();
 }
 
 function updateScoreUI(scores) {
-  if (!scores) return;
-  const me = mp.playerId === "p1" ? scores.p1 : scores.p2;
-  const them = mp.playerId === "p1" ? scores.p2 : scores.p1;
-  scoreLineEl.textContent = `${mp.myName || "tú"}: ${me || 0}  ·  ${mp.opponentName || "rival"}: ${them || 0}`;
+  if (!scores || !mp) return;
+  const parts = activeSlots().map((slot) => {
+    const label = slot === mp.playerId ? mp.myName || "tú" : mp.players[slot]?.name || slot;
+    return `${label}: ${scores[slot] || 0}`;
+  });
+  scoreLineEl.textContent = parts.join("  ·  ");
+}
+
+function renderWaitingSkulls() {
+  const container = waitingSkullsEl;
+  if (!mp) {
+    container.classList.add("hidden");
+    return;
+  }
+  container.classList.remove("hidden");
+
+  const waiting = new Set(activeSlots().filter((s) => s !== mp.playerId && s !== mp.currentTurn));
+
+  SLOT_ORDER.forEach((slot) => {
+    const el = document.getElementById(`wait${slot.toUpperCase()}`);
+    if (waiting.has(slot)) {
+      el.classList.remove("hidden");
+      el.querySelector(".waiting-skull-name").textContent = mp.players[slot]?.name || slot;
+    } else {
+      el.classList.add("hidden");
+    }
+  });
 }
 
 function showGoogleProfile(profile) {
@@ -414,7 +469,7 @@ function loop(now) {
 
   drawTable(ctx);
   for (const b of balls) b.draw(ctx);
-  drawAim(ctx, cue, input);
+  drawAim(ctx, cue, input, mp ? PLAYER_COLORS[mp.playerId] : "#caa06a");
 
   powerFillEl.style.width = `${Math.round(input.power * 100)}%`;
 
@@ -428,12 +483,23 @@ function loop(now) {
 }
 requestAnimationFrame(loop);
 
+window.__debug2 = () => ({
+  mpPlayerId: mp?.playerId,
+  currentTurn: mp?.currentTurn,
+  opponentGone: mp?.opponentGone,
+  canShoot: canShootNow(),
+  cueSpeed: cue ? Math.hypot(cue.vx, cue.vy) : null,
+  cuePos: cue ? { x: Math.round(cue.x), y: Math.round(cue.y) } : null,
+  players: mp?.players,
+});
+
 // =========================================================
 // MODE SELECT / LOBBY WIRING
 // =========================================================
 document.getElementById("btnLocal").addEventListener("click", () => {
   mp = null;
   mpStatusBlockEl.classList.add("hidden");
+  waitingSkullsEl.classList.add("hidden");
   resetBtn.classList.remove("hidden");
   leaveRoomBtn.classList.add("hidden");
   newGame();
@@ -476,7 +542,7 @@ document.getElementById("btnCreateRoom").addEventListener("click", async () => {
   lobbyStatusEl.className = "lobby-status";
   try {
     const { code, playerId, rackOrder, name } = await net.createRoom();
-    mp = { code, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null };
+    mp = { code, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null, players: { [playerId]: { name } }, lastScores: null };
     roomCodeBigEl.textContent = code;
     screen("mpWaiting");
 
@@ -499,7 +565,7 @@ document.getElementById("btnJoinRoom").addEventListener("click", async () => {
   lobbyStatusEl.className = "lobby-status";
   try {
     const { code: roomCode, playerId, rackOrder, name } = await net.joinRoom(code);
-    mp = { code: roomCode, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null };
+    mp = { code: roomCode, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null, players: { [playerId]: { name } }, lastScores: null };
     startMultiplayerGame();
   } catch (e) {
     console.error(e);
@@ -524,6 +590,7 @@ leaveRoomBtn.addEventListener("click", () => {
     mp = null;
   }
   mpStatusBlockEl.classList.add("hidden");
+  waitingSkullsEl.classList.add("hidden");
   resetBtn.classList.remove("hidden");
   leaveRoomBtn.classList.add("hidden");
   screen("modeSelect");
@@ -560,19 +627,15 @@ function startMultiplayerGame() {
       applyCorrection(correction.balls);
     },
     onPlayers: (players) => {
-      const otherKey = mp.playerId === "p1" ? "p2" : "p1";
-      const other = players && players[otherKey];
-      const wasThere = mp.opponentGone === false;
+      if (!players) return;
+      mp.players = players;
 
-      if (other && other.name && other.name !== mp.opponentName) {
-        mp.opponentName = other.name;
-        updateTurnUI();
-        if (mp.lastScores) updateScoreUI(mp.lastScores);
-      }
-      if (wasThere && players && !other) {
-        mp.opponentGone = true;
-        updateTurnUI();
-      }
+      const stillHaveOthers = SLOT_ORDER.some((s) => s !== mp.playerId && players[s]);
+      if (mp.opponentGone && stillHaveOthers) mp.opponentGone = false;
+      if (!stillHaveOthers) mp.opponentGone = true;
+
+      updateTurnUI();
+      if (mp.lastScores) updateScoreUI(mp.lastScores);
     },
   });
 }

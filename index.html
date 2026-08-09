@@ -109,9 +109,30 @@
     <p class="status-face-label mono">visor</p>
   </div>
 
-  <div class="table-wrap">
-    <canvas id="table" width="1392" height="696" aria-label="Mesa de billar"></canvas>
-    <div id="scratchFlash" class="scratch-flash">falta — bola blanca en mano</div>
+  <div class="table-outer">
+    <div class="table-wrap">
+      <canvas id="table" width="1392" height="696" aria-label="Mesa de billar"></canvas>
+      <div id="scratchFlash" class="scratch-flash">falta — bola blanca en mano</div>
+    </div>
+
+    <div id="waitingSkulls" class="waiting-skulls hidden">
+      <div id="waitP1" class="waiting-skull corner-tl hidden">
+        <img src="assets/face-idle.png" alt="" class="waiting-skull-img">
+        <span class="waiting-skull-name"></span>
+      </div>
+      <div id="waitP2" class="waiting-skull corner-tr hidden">
+        <img src="assets/face-idle.png" alt="" class="waiting-skull-img">
+        <span class="waiting-skull-name"></span>
+      </div>
+      <div id="waitP3" class="waiting-skull corner-bl hidden">
+        <img src="assets/face-idle.png" alt="" class="waiting-skull-img">
+        <span class="waiting-skull-name"></span>
+      </div>
+      <div id="waitP4" class="waiting-skull corner-br hidden">
+        <img src="assets/face-idle.png" alt="" class="waiting-skull-img">
+        <span class="waiting-skull-name"></span>
+      </div>
+    </div>
   </div>
 
   <aside class="hud">

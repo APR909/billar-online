@@ -15,6 +15,8 @@ function myDisplayName(fallback) {
   return mockProfile?.name || fallback;
 }
 
+export const SLOT_ORDER = ["p1", "p2", "p3", "p4"];
+
 const CODE_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
 function randomCode(len = 5) {
   let c = "";
@@ -29,7 +31,7 @@ export async function createRoom() {
   const code = randomCode();
   const rackOrder = generateRackOrder();
   const name = myDisplayName("Jugador 1");
-  writeRoom(code, { status: "waiting", turn: "p1", players: { p1: { name } }, scores: { p1: 0, p2: 0 }, rackOrder });
+  writeRoom(code, { status: "waiting", turn: "p1", players: { p1: { name } }, scores: { p1: 0, p2: 0, p3: 0, p4: 0 }, rackOrder });
   return { code, playerId: "p1", rackOrder, name };
 }
 
@@ -37,13 +39,14 @@ export async function joinRoom(codeRaw) {
   const code = codeRaw.trim().toUpperCase();
   const room = readRoom(code);
   if (!room) throw new Error("Esa sala no existe.");
-  if (room.players.p2) throw new Error("Esa sala ya está completa.");
-  const name = myDisplayName("Jugador 2");
-  room.players.p2 = { name };
+  const slot = SLOT_ORDER.find((s) => !room.players[s]);
+  if (!slot) throw new Error("Esa sala ya está completa (máximo 4 jugadores).");
+  const name = myDisplayName(`Jugador ${SLOT_ORDER.indexOf(slot) + 1}`);
+  room.players[slot] = { name };
   room.status = "playing";
   writeRoom(code, room);
   window.dispatchEvent(new StorageEvent("storage", { key: key(code) }));
-  return { code, playerId: "p2", rackOrder: room.rackOrder, name };
+  return { code, playerId: slot, rackOrder: room.rackOrder, name };
 }
 
 export function listenRoom(code, callbacks) {

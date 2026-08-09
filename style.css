@@ -70,14 +70,70 @@ body {
   margin: 0 auto;
 }
 
-.table-wrap {
+.table-outer {
   position: relative;
   flex: 1 1 780px;
   min-width: 280px;
+}
+
+.table-wrap {
+  position: relative;
   border-radius: 16px;
   overflow: hidden;
   box-shadow: 0 30px 60px rgba(0,0,0,0.5);
   line-height: 0;
+}
+
+.waiting-skulls {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 4;
+}
+.waiting-skulls.hidden { display: none; }
+
+.waiting-skull {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.waiting-skull.hidden { display: none; }
+
+.corner-tl { top: -22px; left: -22px; }
+.corner-tr { top: -22px; right: -22px; }
+.corner-bl { bottom: -22px; left: -22px; }
+.corner-br { bottom: -22px; right: -22px; }
+
+.waiting-skull-img {
+  width: 46px;
+  height: 46px;
+  object-fit: contain;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  background: #0a0808;
+  border-radius: 8px;
+  padding: 5px;
+  opacity: 0.9;
+}
+
+#waitP1 .waiting-skull-img { box-shadow: 0 0 0 2px #E4283C, 0 0 12px rgba(228,40,60,0.65); }
+#waitP2 .waiting-skull-img { box-shadow: 0 0 0 2px #4DD0FF, 0 0 12px rgba(77,208,255,0.65); }
+#waitP3 .waiting-skull-img { box-shadow: 0 0 0 2px #7CFF6B, 0 0 12px rgba(124,255,107,0.65); }
+#waitP4 .waiting-skull-img { box-shadow: 0 0 0 2px #C77DFF, 0 0 12px rgba(199,125,255,0.65); }
+
+.waiting-skull-name {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--ink-soft);
+  background: rgba(0,0,0,0.7);
+  padding: 2px 7px;
+  border-radius: 999px;
+  max-width: 86px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 canvas {

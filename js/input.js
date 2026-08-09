@@ -66,7 +66,7 @@ export function createInput(canvas, getCueBall, canShoot, onShoot) {
   return state;
 }
 
-export function drawAim(ctx, cue, state) {
+export function drawAim(ctx, cue, state, stickColor = "#caa06a") {
   if (!cue || cue.potted) return;
 
   if (!state.dragging) return;
@@ -96,7 +96,7 @@ export function drawAim(ctx, cue, state) {
   const stickEnd = stickStart + 150;
 
   ctx.save();
-  ctx.strokeStyle = "#caa06a";
+  ctx.strokeStyle = stickColor;
   ctx.lineWidth = 6;
   ctx.lineCap = "round";
   ctx.beginPath();
