@@ -131,7 +131,7 @@ function resolveBallCollisions(balls, onCollision) {
       if (relVelAlongNormal > 0) continue; // already separating
 
       const impactSpeed = Math.abs(relVelAlongNormal);
-      if (onCollision && impactSpeed > COLLISION_SOUND_MIN_SPEED) onCollision("ball", impactSpeed);
+      if (onCollision) onCollision("ball", impactSpeed, a, b);
 
       const impulse = -(1 + BALL_RESTITUTION) * relVelAlongNormal / 2; // equal mass
       a.vx -= impulse * nx;

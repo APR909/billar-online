@@ -37,6 +37,8 @@ const roomCodeSmallEl = document.getElementById("roomCodeSmall");
 const roomCodeBigEl = document.getElementById("roomCodeBig");
 const turnIndicatorEl = document.getElementById("turnIndicator");
 const scoreLineEl = document.getElementById("scoreLine");
+const groupLineEl = document.getElementById("groupLine");
+const foulLineEl = document.getElementById("foulLine");
 const lobbyStatusEl = document.getElementById("lobbyStatus");
 const joinCodeInput = document.getElementById("joinCodeInput");
 const btnGoogleSignIn = document.getElementById("btnGoogleSignIn");
@@ -113,6 +115,7 @@ function newGame(rackOrder) {
   pottedTrayEl.innerHTML = "";
   pottedThisShot = [];
   scratchedThisShot = false;
+  firstContactBall = null;
   awaitingRespawn = false;
   matchStartTime = performance.now();
   matchElapsedFrozen = null;
@@ -121,6 +124,9 @@ function newGame(rackOrder) {
   setFace("idle");
   updateFaceColor();
   settleWatcher.reset();
+  groupLineEl.classList.add("hidden");
+  foulLineEl.classList.add("hidden");
+  if (mp) mp.groups = {};
   completionOverlayEl.classList.add("hidden");
   updateBallsLeft();
 }
@@ -186,9 +192,22 @@ function respawnCueIfNeeded() {
 }
 
 function canShootNow() {
-  if (!cue || cue.potted || !isSettled(balls)) return false;
+  if (!cue || cue.potted || !isSettled(balls) || gameCompleted) return false;
   if (mp) return mp.currentTurn === mp.playerId && !mp.opponentGone;
   return true;
+}
+
+function applyGameOver(gameOver) {
+  if (!gameOver || !mp || gameCompleted) return;
+  gameCompleted = true;
+  matchElapsedFrozen = performance.now() - matchStartTime;
+  const iWon = gameOver.winner === mp.playerId;
+  faceFinal = iWon ? "victory" : "defeat";
+  setFace(faceFinal);
+  turnIndicatorEl.textContent = iWon ? "¡has ganado!" : "has perdido";
+  turnIndicatorEl.className = "turn-indicator " + (iWon ? "my-turn" : "their-turn");
+  foulLineEl.classList.remove("hidden");
+  foulLineEl.textContent = gameOver.reason || "";
 }
 
 const input = createInput(
@@ -200,6 +219,8 @@ const input = createInput(
     cue.vy = vy;
     playStrike(Math.min(1, Math.hypot(vx, vy) / MAX_SHOT_SPEED));
     scratchedThisShot = false;
+    firstContactBall = null;
+    foulLineEl.classList.add("hidden");
     settleWatcher.armForLocalShot(true);
     if (mp) {
       net.sendShot(mp.code, mp.playerId, vx, vy);
@@ -252,14 +273,97 @@ const settleWatcher = (() => {
       }
 
       lastShotWasMine = true;
-      const gained = pottedThisShot.filter((b) => b.number !== 8).length;
-      if (pottedThisShot.length > 0) setFace("happy", 1400);
-      else setFace("hurt", 1400);
 
       if (!mp) {
+        if (pottedThisShot.length > 0) setFace("happy", 1400);
+        else setFace("hurt", 1400);
         pottedThisShot = [];
         return;
       }
+
+      if (classicRulesActive()) {
+        const potted = pottedThisShot.slice();
+        pottedThisShot = [];
+        const eightPotted = potted.some((b) => b.number === 8);
+        const nonEightPotted = potted.filter((b) => b.number !== 8);
+        const myGroup = mp.groups[mp.playerId] || null;
+
+        let foul = false;
+        let foulReason = "";
+        if (scratchedThisShot) {
+          foul = true;
+          foulReason = "bola blanca colada";
+        } else if (!firstContactBall) {
+          foul = true;
+          foulReason = "no has tocado ninguna bola";
+        } else {
+          const contactGroup = ballGroup(firstContactBall);
+          if (contactGroup === "eight") {
+            const groupCleared = myGroup && remainingInGroup(myGroup) === 0;
+            if (!groupCleared) {
+              foul = true;
+              foulReason = "has tocado la bola 8 antes de tiempo";
+            }
+          } else if (myGroup && contactGroup !== myGroup) {
+            foul = true;
+            foulReason = "has tocado una bola que no es tuya";
+          }
+        }
+
+        let groupsChanged = false;
+        if (!myGroup && !foul && nonEightPotted.length > 0) {
+          const newGroup = ballGroup(nonEightPotted[0]);
+          const otherSlot = activeSlots().find((s) => s !== mp.playerId);
+          mp.groups = { ...mp.groups, [mp.playerId]: newGroup, [otherSlot]: newGroup === "solid" ? "stripe" : "solid" };
+          groupsChanged = true;
+        }
+
+        const snapshot = () =>
+          balls.map((b) => ({ x: Math.round(b.x * 100) / 100, y: Math.round(b.y * 100) / 100, potted: b.potted }));
+
+        if (eightPotted) {
+          const myGroupNow = mp.groups[mp.playerId] || null;
+          const legalWin = !foul && myGroupNow && remainingInGroup(myGroupNow) === 0;
+          const otherSlot = activeSlots().find((s) => s !== mp.playerId);
+          const winner = legalWin ? mp.playerId : otherSlot;
+          const reason = legalWin ? null : foul ? foulReason : "metiste la bola 8 antes de tiempo";
+          const gameOver = { winner, reason, ts: Date.now() };
+
+          net.sendCorrection(mp.code, mp.playerId, snapshot(), mp.currentTurn, {
+            groups: groupsChanged ? mp.groups : undefined,
+            gameOver,
+          });
+          applyGameOver(gameOver);
+          return;
+        }
+
+        setFace(foul ? "hurt" : nonEightPotted.length > 0 ? "happy" : "hurt", 1400);
+
+        if (foul) {
+          foulLineEl.classList.remove("hidden");
+          foulLineEl.textContent = `falta — ${foulReason}`;
+        } else {
+          foulLineEl.classList.add("hidden");
+        }
+
+        const continueShooting = !foul && nonEightPotted.some((b) => !myGroup || ballGroup(b) === myGroup);
+        const nextTurn = continueShooting ? mp.playerId : nextActiveTurn(mp.playerId);
+        mp.currentTurn = nextTurn;
+
+        if (foul) placeCueAtKitchen();
+
+        net.sendCorrection(mp.code, mp.playerId, snapshot(), nextTurn, {
+          groups: groupsChanged ? mp.groups : undefined,
+          foul: foul ? { by: mp.playerId, reason: foulReason, ts: Date.now() } : null,
+        });
+        updateTurnUI();
+        return;
+      }
+
+      // 3-4 player games — no groups/fouls, simple points-per-ball scoring
+      const gained = pottedThisShot.filter((b) => b.number !== 8).length;
+      if (pottedThisShot.length > 0) setFace("happy", 1400);
+      else setFace("hurt", 1400);
 
       const nextTurn = nextActiveTurn(mp.playerId);
       pottedThisShot = [];
@@ -294,6 +398,33 @@ function activeSlots() {
   return SLOT_ORDER.filter((s) => mp?.players?.[s]);
 }
 
+function ballGroup(ball) {
+  if (ball.number === 8) return "eight";
+  return ball.number < 8 ? "solid" : "stripe";
+}
+
+function remainingInGroup(group) {
+  return balls.filter((b) => !b.potted && !b.isCue && ballGroup(b) === group).length;
+}
+
+function classicRulesActive() {
+  return !!mp && activeSlots().length === 2;
+}
+
+function groupLabel(group) {
+  if (group === "solid") return "lisas";
+  if (group === "stripe") return "rayadas";
+  return "";
+}
+
+function placeCueAtKitchen() {
+  cue.potted = false;
+  cue.x = PLAY_LEFT + (PLAY_RIGHT - PLAY_LEFT) * 0.22;
+  cue.y = (PLAY_TOP + PLAY_BOTTOM) / 2;
+  cue.vx = 0;
+  cue.vy = 0;
+}
+
 function nextActiveTurn(fromSlot) {
   const active = activeSlots();
   if (active.length === 0) return fromSlot;
@@ -303,6 +434,10 @@ function nextActiveTurn(fromSlot) {
 
 function updateTurnUI() {
   if (!mp) return;
+  if (gameCompleted) {
+    renderWaitingSkulls();
+    return;
+  }
   if (mp.opponentGone) {
     turnIndicatorEl.textContent = "esperando jugadores…";
     turnIndicatorEl.className = "turn-indicator";
@@ -312,6 +447,14 @@ function updateTurnUI() {
     turnIndicatorEl.textContent = myTurn ? "tu turno" : `turno de ${shooterName}`;
     turnIndicatorEl.className = "turn-indicator " + (myTurn ? "my-turn" : "their-turn");
   }
+
+  if (classicRulesActive() && mp.groups[mp.playerId]) {
+    groupLineEl.classList.remove("hidden");
+    groupLineEl.textContent = `// vas de ${groupLabel(mp.groups[mp.playerId])}`;
+  } else {
+    groupLineEl.classList.add("hidden");
+  }
+
   renderWaitingSkulls();
 }
 
@@ -443,9 +586,19 @@ initNetwork()
   .then(() => net.listenLeaderboard(renderLeaderboard))
   .catch(() => {});
 
-function onCollisionSound(kind, impactSpeed) {
-  if (kind === "ball") playBallHit(impactSpeed);
-  else playCushionHit(impactSpeed);
+const COLLISION_SOUND_MIN_SPEED = 25;
+let firstContactBall = null; // which ball the cue touched first this shot — needed for foul detection
+
+function onCollisionSound(kind, impactSpeed, a, b) {
+  if (kind === "ball") {
+    if (a && b && !firstContactBall) {
+      if (a.isCue && !b.isCue) firstContactBall = b;
+      else if (b.isCue && !a.isCue) firstContactBall = a;
+    }
+    if (impactSpeed > COLLISION_SOUND_MIN_SPEED) playBallHit(impactSpeed);
+  } else if (impactSpeed > COLLISION_SOUND_MIN_SPEED) {
+    playCushionHit(impactSpeed);
+  }
 }
 
 // =========================================================
@@ -542,7 +695,7 @@ document.getElementById("btnCreateRoom").addEventListener("click", async () => {
   lobbyStatusEl.className = "lobby-status";
   try {
     const { code, playerId, rackOrder, name } = await net.createRoom();
-    mp = { code, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null, players: { [playerId]: { name } }, lastScores: null };
+    mp = { code, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null, players: { [playerId]: { name } }, lastScores: null, groups: {} };
     roomCodeBigEl.textContent = code;
     screen("mpWaiting");
 
@@ -565,7 +718,7 @@ document.getElementById("btnJoinRoom").addEventListener("click", async () => {
   lobbyStatusEl.className = "lobby-status";
   try {
     const { code: roomCode, playerId, rackOrder, name } = await net.joinRoom(code);
-    mp = { code: roomCode, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null, players: { [playerId]: { name } }, lastScores: null };
+    mp = { code: roomCode, playerId, currentTurn: "p1", myScore: 0, rackOrderShared: rackOrder, opponentGone: false, myName: name, opponentName: null, players: { [playerId]: { name } }, lastScores: null, groups: {} };
     startMultiplayerGame();
   } catch (e) {
     console.error(e);
@@ -620,6 +773,8 @@ function startMultiplayerGame() {
       if (!shot || shot.by === mp.playerId) return;
       cue.vx = shot.vx;
       cue.vy = shot.vy;
+      scratchedThisShot = false;
+      firstContactBall = null;
       settleWatcher.armForLocalShot(false);
     },
     onCorrection: (correction) => {
@@ -637,6 +792,17 @@ function startMultiplayerGame() {
       updateTurnUI();
       if (mp.lastScores) updateScoreUI(mp.lastScores);
     },
+    onGroups: (groups) => {
+      if (!groups) return;
+      mp.groups = groups;
+      updateTurnUI();
+    },
+    onFoul: (foul) => {
+      if (!foul || foul.by === mp.playerId) return;
+      foulLineEl.classList.remove("hidden");
+      foulLineEl.textContent = `${mp.players?.[foul.by]?.name || "tu rival"} — falta: ${foul.reason}`;
+    },
+    onGameOver: (gameOver) => applyGameOver(gameOver),
   });
 }
 

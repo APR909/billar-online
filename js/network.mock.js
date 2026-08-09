@@ -31,7 +31,7 @@ export async function createRoom() {
   const code = randomCode();
   const rackOrder = generateRackOrder();
   const name = myDisplayName("Jugador 1");
-  writeRoom(code, { status: "waiting", turn: "p1", players: { p1: { name } }, scores: { p1: 0, p2: 0, p3: 0, p4: 0 }, rackOrder });
+  writeRoom(code, { status: "waiting", turn: "p1", players: { p1: { name } }, scores: { p1: 0, p2: 0, p3: 0, p4: 0 }, groups: {}, rackOrder });
   return { code, playerId: "p1", rackOrder, name };
 }
 
@@ -50,6 +50,8 @@ export async function joinRoom(codeRaw) {
 }
 
 export function listenRoom(code, callbacks) {
+  let lastShotTs = null;
+  let lastCorrectionTs = null;
   const handler = () => {
     const room = readRoom(code);
     if (!room) return;
@@ -57,8 +59,17 @@ export function listenRoom(code, callbacks) {
     callbacks.onTurn?.(room.turn);
     callbacks.onScores?.(room.scores);
     callbacks.onPlayers?.(room.players);
-    if (room.shot) callbacks.onShot?.(room.shot);
-    if (room.correction) callbacks.onCorrection?.(room.correction);
+    callbacks.onGroups?.(room.groups);
+    callbacks.onGameOver?.(room.gameOver);
+    callbacks.onFoul?.(room.foul);
+    if (room.shot && room.shot.ts !== lastShotTs) {
+      lastShotTs = room.shot.ts;
+      callbacks.onShot?.(room.shot);
+    }
+    if (room.correction && room.correction.ts !== lastCorrectionTs) {
+      lastCorrectionTs = room.correction.ts;
+      callbacks.onCorrection?.(room.correction);
+    }
   };
   window.addEventListener("storage", handler);
   // fire once immediately with current state (mimics Firebase onValue's initial call)
@@ -73,11 +84,14 @@ export function sendShot(code, playerId, vx, vy) {
   window.dispatchEvent(new StorageEvent("storage", { key: key(code) }));
 }
 
-export function sendCorrection(code, playerId, balls, nextTurn, scoreDelta) {
+export function sendCorrection(code, playerId, balls, nextTurn, extra = {}) {
   const room = readRoom(code);
   room.correction = { by: playerId, balls, ts: Date.now() };
   room.turn = nextTurn;
-  if (scoreDelta) room.scores[playerId] = scoreDelta.newScore;
+  if (extra.newScore !== undefined) room.scores[playerId] = extra.newScore;
+  if (extra.groups !== undefined) room.groups = extra.groups;
+  if (extra.gameOver !== undefined) room.gameOver = extra.gameOver;
+  if (extra.foul !== undefined) room.foul = extra.foul;
   writeRoom(code, room);
   window.dispatchEvent(new StorageEvent("storage", { key: key(code) }));
 }

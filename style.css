@@ -489,6 +489,10 @@ canvas {
 .turn-indicator.my-turn { color: var(--red-bright); }
 .turn-indicator.their-turn { color: var(--ink-soft); }
 .score-line { font-size: 0.8rem; color: var(--ink-soft); margin: 8px 0 0; }
+.group-line { font-size: 0.78rem; color: var(--ink-soft); margin: 4px 0 0; font-family: var(--font-mono); }
+.group-line.hidden { display: none; }
+.foul-line { font-size: 0.82rem; color: var(--red-bright); margin: 6px 0 0; font-weight: 600; }
+.foul-line.hidden { display: none; }
 
 .stage.hidden { display: none; }
 
