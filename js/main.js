@@ -151,6 +151,83 @@ function flashScratch() {
   setTimeout(() => scratchFlashEl.classList.remove("show"), 1600);
 }
 
+// =========================================================
+// BALL IN HAND — free placement after a scratch or a foul
+// =========================================================
+let placingCueBall = false;
+let placingCueOnComplete = null;
+const ghostCue = { x: 0, y: 0, valid: false };
+
+function isValidCuePlacement(x, y) {
+  if (x < PLAY_LEFT + cue.r || x > PLAY_RIGHT - cue.r) return false;
+  if (y < PLAY_TOP + cue.r || y > PLAY_BOTTOM - cue.r) return false;
+  for (const b of balls) {
+    if (b === cue || b.potted) continue;
+    if (Math.hypot(b.x - x, b.y - y) < b.r + cue.r) return false;
+  }
+  return true;
+}
+
+function beginBallInHand(onComplete) {
+  cue.potted = true;
+  cue.vx = 0;
+  cue.vy = 0;
+  placingCueBall = true;
+  placingCueOnComplete = onComplete || null;
+  ghostCue.x = (PLAY_LEFT + PLAY_RIGHT) / 2;
+  ghostCue.y = (PLAY_TOP + PLAY_BOTTOM) / 2;
+  ghostCue.valid = isValidCuePlacement(ghostCue.x, ghostCue.y);
+  flashScratch();
+}
+
+function toCanvasCoordsMain(evt) {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = canvas.width / rect.width;
+  const scaleY = canvas.height / rect.height;
+  return { x: (evt.clientX - rect.left) * scaleX, y: (evt.clientY - rect.top) * scaleY };
+}
+
+canvas.addEventListener("pointermove", (evt) => {
+  if (!placingCueBall) return;
+  const p = toCanvasCoordsMain(evt);
+  ghostCue.x = Math.min(PLAY_RIGHT - cue.r, Math.max(PLAY_LEFT + cue.r, p.x));
+  ghostCue.y = Math.min(PLAY_BOTTOM - cue.r, Math.max(PLAY_TOP + cue.r, p.y));
+  ghostCue.valid = isValidCuePlacement(ghostCue.x, ghostCue.y);
+});
+
+canvas.addEventListener("pointerdown", (evt) => {
+  if (!placingCueBall || !ghostCue.valid) return;
+  cue.x = ghostCue.x;
+  cue.y = ghostCue.y;
+  cue.potted = false;
+  placingCueBall = false;
+  const cb = placingCueOnComplete;
+  placingCueOnComplete = null;
+  cb?.();
+});
+
+function drawGhostCue(ctx) {
+  if (!placingCueBall) return;
+  ctx.save();
+  ctx.globalAlpha = 0.7;
+  ctx.beginPath();
+  ctx.arc(ghostCue.x, ghostCue.y, cue.r, 0, Math.PI * 2);
+  ctx.fillStyle = ghostCue.valid ? "#F3EFEA" : "#8a1f1f";
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = ghostCue.valid ? "rgba(120,255,170,0.9)" : "rgba(255,90,90,0.9)";
+  ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.9;
+  ctx.textAlign = "center";
+  ctx.fillStyle = "#F3EFEA";
+  ctx.font = "600 15px 'Work Sans', sans-serif";
+  ctx.fillText("bola en mano — haz clic para colocarla", (PLAY_LEFT + PLAY_RIGHT) / 2, PLAY_TOP - 14);
+  ctx.restore();
+}
+
 function rebuildTrayFromState() {
   pottedTrayEl.innerHTML = "";
   balls.forEach((b) => {
@@ -180,14 +257,9 @@ function onPot(ball) {
 }
 
 function respawnCueIfNeeded() {
-  if (awaitingRespawn && isSettled(balls)) {
-    cue.potted = false;
-    cue.x = PLAY_LEFT + (PLAY_RIGHT - PLAY_LEFT) * 0.22;
-    cue.y = (PLAY_TOP + PLAY_BOTTOM) / 2;
-    cue.vx = 0;
-    cue.vy = 0;
+  if (awaitingRespawn && isSettled(balls) && !placingCueBall) {
     awaitingRespawn = false;
-    flashScratch();
+    beginBallInHand();
   }
 }
 
@@ -350,13 +422,19 @@ const settleWatcher = (() => {
         const nextTurn = continueShooting ? mp.playerId : nextActiveTurn(mp.playerId);
         mp.currentTurn = nextTurn;
 
-        if (foul) placeCueAtKitchen();
+        const finishTurn = () => {
+          net.sendCorrection(mp.code, mp.playerId, snapshot(), nextTurn, {
+            groups: groupsChanged ? mp.groups : undefined,
+            foul: foul ? { by: mp.playerId, reason: foulReason, ts: Date.now() } : null,
+          });
+          updateTurnUI();
+        };
 
-        net.sendCorrection(mp.code, mp.playerId, snapshot(), nextTurn, {
-          groups: groupsChanged ? mp.groups : undefined,
-          foul: foul ? { by: mp.playerId, reason: foulReason, ts: Date.now() } : null,
-        });
-        updateTurnUI();
+        if (foul) {
+          beginBallInHand(finishTurn);
+        } else {
+          finishTurn();
+        }
         return;
       }
 
@@ -415,14 +493,6 @@ function groupLabel(group) {
   if (group === "solid") return "lisas";
   if (group === "stripe") return "rayadas";
   return "";
-}
-
-function placeCueAtKitchen() {
-  cue.potted = false;
-  cue.x = PLAY_LEFT + (PLAY_RIGHT - PLAY_LEFT) * 0.22;
-  cue.y = (PLAY_TOP + PLAY_BOTTOM) / 2;
-  cue.vx = 0;
-  cue.vy = 0;
 }
 
 function nextActiveTurn(fromSlot) {
@@ -622,7 +692,8 @@ function loop(now) {
 
   drawTable(ctx);
   for (const b of balls) b.draw(ctx);
-  drawAim(ctx, cue, input, mp ? PLAYER_COLORS[mp.playerId] : "#caa06a");
+  drawAim(ctx, cue, input, mp ? PLAYER_COLORS[mp.playerId] : "#caa06a", balls);
+  drawGhostCue(ctx);
 
   powerFillEl.style.width = `${Math.round(input.power * 100)}%`;
 
