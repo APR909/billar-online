@@ -58,6 +58,23 @@ body {
 
 .build-tag { font-size: 0.78rem; color: var(--ink-soft); }
 
+.topbar-right { display: flex; align-items: center; gap: 16px; }
+.music-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px; height: 34px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,0.15);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+}
+.music-toggle:hover { color: var(--ink); border-color: rgba(255,255,255,0.3); }
+.music-toggle[aria-pressed="true"] { color: var(--red-bright); border-color: rgba(228,40,60,0.5); background: rgba(228,40,60,0.08); }
+.music-toggle svg { display: block; }
+
 /* ---------- layout ---------- */
 .stage {
   display: flex;

@@ -2,7 +2,7 @@ import { drawTable, PLAY_LEFT, PLAY_RIGHT, PLAY_TOP, PLAY_BOTTOM } from "./table
 import { createRack } from "./rack.js";
 import { stepPhysics, isSettled } from "./physics.js";
 import { createInput, drawAim, MAX_SHOT_SPEED } from "./input.js";
-import { playStrike, playBallHit, playCushionHit, playPot } from "./sound.js";
+import { playStrike, playBallHit, playCushionHit, playPot, startMusic, toggleMusic } from "./sound.js";
 
 // =========================================================
 // DOM
@@ -881,4 +881,11 @@ document.getElementById("btnTitleContinue").addEventListener("click", () => {
   clearInterval(titleMouthTimer);
   titleScreenEl.classList.add("hidden");
   screen("modeSelect");
+  startMusic();
+});
+
+const btnMusicToggle = document.getElementById("btnMusicToggle");
+btnMusicToggle.addEventListener("click", () => {
+  const playing = toggleMusic();
+  btnMusicToggle.setAttribute("aria-pressed", String(playing));
 });

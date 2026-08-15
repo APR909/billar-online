@@ -102,3 +102,162 @@ export function playPot() {
     osc.stop(start + 0.25);
   });
 }
+
+// ============================================================
+// BACKGROUND MUSIC — a looping, generative "hell pool" ambience.
+// No audio files: a sustained drone plus a sparse minor/phrygian
+// melodic motif and a soft heartbeat-like pulse, all scheduled
+// ahead of time each loop so it stays gapless and drift-free.
+// ============================================================
+let musicGain = null;
+let musicPlaying = false;
+let musicTimer = null;
+let musicVolumeTarget = 0.18;
+
+const DRONE_FREQ = 55; // A1
+// A phrygian-ish scale rooted on A — gives that dark, unsettled feel
+const SCALE = { A2: 110, Bb2: 116.54, C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.0 };
+const PHRASE_SECONDS = 16;
+
+function getMusicGain() {
+  const c = getCtx();
+  if (!musicGain) {
+    musicGain = c.createGain();
+    musicGain.gain.value = 0;
+    musicGain.connect(c.destination);
+  }
+  return musicGain;
+}
+
+function scheduleDrone(startAt, duration) {
+  const c = getCtx();
+  const osc = c.createOscillator();
+  osc.type = "sawtooth";
+  osc.frequency.setValueAtTime(DRONE_FREQ, startAt);
+
+  const filter = c.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 220;
+  filter.Q.value = 0.7;
+
+  const gain = c.createGain();
+  // slow breathing swell across the phrase
+  gain.gain.setValueAtTime(0.05, startAt);
+  gain.gain.linearRampToValueAtTime(0.11, startAt + duration * 0.5);
+  gain.gain.linearRampToValueAtTime(0.05, startAt + duration);
+
+  osc.connect(filter).connect(gain).connect(getMusicGain());
+  osc.start(startAt);
+  osc.stop(startAt + duration);
+}
+
+function scheduleNote(freq, startAt, duration, volume = 0.06) {
+  const c = getCtx();
+  const osc = c.createOscillator();
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(freq, startAt);
+
+  const filter = c.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 1400;
+
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0, startAt);
+  gain.gain.linearRampToValueAtTime(volume, startAt + duration * 0.15);
+  gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
+
+  osc.connect(filter).connect(gain).connect(getMusicGain());
+  osc.start(startAt);
+  osc.stop(startAt + duration);
+}
+
+function schedulePulse(startAt) {
+  const c = getCtx();
+  const osc = c.createOscillator();
+  osc.type = "sine";
+  osc.frequency.setValueAtTime(70, startAt);
+  osc.frequency.exponentialRampToValueAtTime(35, startAt + 0.35);
+
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.14, startAt);
+  gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.4);
+
+  osc.connect(gain).connect(getMusicGain());
+  osc.start(startAt);
+  osc.stop(startAt + 0.4);
+}
+
+function scheduleWind(startAt, duration) {
+  const c = getCtx();
+  const size = Math.floor(c.sampleRate * duration);
+  const buffer = c.createBuffer(1, size, c.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+
+  const src = c.createBufferSource();
+  src.buffer = buffer;
+  const filter = c.createBiquadFilter();
+  filter.type = "bandpass";
+  filter.frequency.value = 500;
+  filter.Q.value = 0.6;
+
+  const gain = c.createGain();
+  gain.gain.setValueAtTime(0.012, startAt);
+
+  src.connect(filter).connect(gain).connect(getMusicGain());
+  src.start(startAt);
+  src.stop(startAt + duration);
+}
+
+/** Schedules one full phrase starting at `startAt` (an AudioContext time). */
+function schedulePhrase(startAt) {
+  scheduleDrone(startAt, PHRASE_SECONDS);
+  scheduleWind(startAt, PHRASE_SECONDS);
+  [0, 4, 8, 12].forEach((t) => schedulePulse(startAt + t));
+
+  scheduleNote(SCALE.A2, startAt + 0, 2.2, 0.055);
+  scheduleNote(SCALE.C3, startAt + 3, 1.4, 0.05);
+  scheduleNote(SCALE.Bb2, startAt + 5, 1.0, 0.045);
+  scheduleNote(SCALE.E3, startAt + 8, 2.6, 0.05);
+  scheduleNote(SCALE.D3, startAt + 11, 1.4, 0.045);
+  scheduleNote(SCALE.F3, startAt + 13, 1.1, 0.05);
+}
+
+function musicLoop() {
+  if (!musicPlaying) return;
+  const c = getCtx();
+  schedulePhrase(c.currentTime + 0.05);
+  musicTimer = setTimeout(musicLoop, (PHRASE_SECONDS - 0.5) * 1000);
+}
+
+export function startMusic() {
+  const c = getCtx();
+  const gain = getMusicGain();
+  if (musicPlaying) return;
+  musicPlaying = true;
+  gain.gain.cancelScheduledValues(c.currentTime);
+  gain.gain.setValueAtTime(gain.gain.value, c.currentTime);
+  gain.gain.linearRampToValueAtTime(musicVolumeTarget, c.currentTime + 1.5);
+  musicLoop();
+}
+
+export function stopMusic() {
+  musicPlaying = false;
+  if (musicTimer) clearTimeout(musicTimer);
+  if (musicGain) {
+    const c = getCtx();
+    musicGain.gain.cancelScheduledValues(c.currentTime);
+    musicGain.gain.setValueAtTime(musicGain.gain.value, c.currentTime);
+    musicGain.gain.linearRampToValueAtTime(0, c.currentTime + 0.8);
+  }
+}
+
+export function toggleMusic() {
+  if (musicPlaying) stopMusic();
+  else startMusic();
+  return musicPlaying;
+}
+
+export function isMusicPlaying() {
+  return musicPlaying;
+}
