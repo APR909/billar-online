@@ -12,6 +12,7 @@ export class Ball {
     this.stripe = stripe;
     this.isCue = isCue;
     this.potted = false;
+    this.rotation = 0;
     this.cracks = !isCue && number !== 8 ? generateCracks(this.r) : [];
   }
 
@@ -43,6 +44,16 @@ export class Ball {
       g.addColorStop(1, "#cfa87a");
       ctx.fillStyle = g;
       ctx.fillRect(x - r, y - r, r * 2, r * 2);
+
+      // a faint marking so the roll is visible, like a spin-training cue ball
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(this.rotation);
+      ctx.fillStyle = "rgba(180,60,50,0.35)";
+      ctx.beginPath();
+      ctx.arc(r * 0.5, 0, r * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
     } else {
       // dark obsidian base for every numbered ball
       const g = ctx.createRadialGradient(x - r * 0.3, y - r * 0.3, r * 0.1, x, y, r * 1.15);
@@ -51,6 +62,11 @@ export class Ball {
       g.addColorStop(1, "#0a0504");
       ctx.fillStyle = g;
       ctx.fillRect(x - r, y - r, r * 2, r * 2);
+
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(this.rotation);
+      ctx.translate(-x, -y);
 
       if (this.number === 8) {
         // faint glowing red rune ring
@@ -93,6 +109,8 @@ export class Ball {
         });
         ctx.restore();
       }
+
+      ctx.restore();
     }
 
     // glossy highlight (polished dark rock / bone catching the light)
@@ -107,6 +125,10 @@ export class Ball {
 
     // number lozenge, ember-rimmed for readability
     if (this.number && !this.isCue) {
+      ctx.save();
+      ctx.translate(x, y);
+      ctx.rotate(this.rotation);
+      ctx.translate(-x, -y);
       ctx.beginPath();
       ctx.arc(x, y, r * 0.46, 0, Math.PI * 2);
       ctx.fillStyle = "#f5f0e6";
@@ -119,6 +141,7 @@ export class Ball {
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillText(String(this.number), x, y + 0.5);
+      ctx.restore();
     }
   }
 }

@@ -38,6 +38,9 @@ function integrate(b, dt) {
 
   const speed = b.speed;
   if (speed > 0) {
+    // rolling without slipping: angle swept = distance travelled / radius
+    b.rotation = (b.rotation ?? 0) + (speed * dt) / b.r;
+
     const drop = FRICTION_DECEL * dt;
     const newSpeed = Math.max(0, speed - drop);
     if (newSpeed < MIN_SPEED) {
