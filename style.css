@@ -613,6 +613,13 @@ canvas {
 }
 .completion-input:focus { outline: none; border-color: var(--red-bright); }
 
+@media (min-width: 900px) {
+  .stage { max-width: 1829px; } /* calibrated so the table itself renders exactly 20% larger */
+  .table-outer { flex: 1 1 936px; } /* 780 * 1.2 */
+  .hud { width: 288px; } /* 240 * 1.2 */
+  .leaderboard { width: 288px; } /* 240 * 1.2 */
+}
+
 @media (max-width: 720px) {
   .stage { flex-direction: column; align-items: center; }
   .hud, .leaderboard { width: 100%; max-width: 460px; }
