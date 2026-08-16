@@ -104,20 +104,21 @@ export function playPot() {
 }
 
 // ============================================================
-// BACKGROUND MUSIC — a looping, generative "hell pool" ambience.
-// No audio files: a sustained drone plus a sparse minor/phrygian
-// melodic motif and a soft heartbeat-like pulse, all scheduled
-// ahead of time each loop so it stays gapless and drift-free.
+// BACKGROUND MUSIC — a looping, generative "hell pool" theme.
+// No audio files: a rhythmic bass riff plus a bright-ish minor
+// melodic line, more arcade/rock energy than horror-ambient dread.
+// Scheduled a full phrase ahead each loop so it stays gapless.
 // ============================================================
 let musicGain = null;
 let musicPlaying = false;
 let musicTimer = null;
-let musicVolumeTarget = 0.18;
+let musicVolumeTarget = 0.16;
 
-const DRONE_FREQ = 55; // A1
-// A phrygian-ish scale rooted on A — gives that dark, unsettled feel
-const SCALE = { A2: 110, Bb2: 116.54, C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G3: 196.0 };
-const PHRASE_SECONDS = 16;
+// A natural minor (no phrygian flat-2, so it reads as driving/epic
+// rather than unsettling) — root A2, riff notes, and a brighter lead octave
+const BASS = { A2: 110, C3: 130.81, D3: 146.83, E3: 164.81, G2: 98.0 };
+const LEAD = { A4: 440, C5: 523.25, D5: 587.33, E5: 659.25, G4: 392.0, A5: 880 };
+const PHRASE_SECONDS = 8; // shorter, punchier loop
 
 function getMusicGain() {
   const c = getCtx();
@@ -129,41 +130,21 @@ function getMusicGain() {
   return musicGain;
 }
 
-function scheduleDrone(startAt, duration) {
+/** One rhythmic bass note — square-ish wave, short and punchy, like a
+ *  palm-muted riff hit rather than a sustained ominous drone. */
+function scheduleBassHit(freq, startAt, duration, volume = 0.09) {
   const c = getCtx();
   const osc = c.createOscillator();
   osc.type = "sawtooth";
-  osc.frequency.setValueAtTime(DRONE_FREQ, startAt);
-
-  const filter = c.createBiquadFilter();
-  filter.type = "lowpass";
-  filter.frequency.value = 220;
-  filter.Q.value = 0.7;
-
-  const gain = c.createGain();
-  // slow breathing swell across the phrase
-  gain.gain.setValueAtTime(0.05, startAt);
-  gain.gain.linearRampToValueAtTime(0.11, startAt + duration * 0.5);
-  gain.gain.linearRampToValueAtTime(0.05, startAt + duration);
-
-  osc.connect(filter).connect(gain).connect(getMusicGain());
-  osc.start(startAt);
-  osc.stop(startAt + duration);
-}
-
-function scheduleNote(freq, startAt, duration, volume = 0.06) {
-  const c = getCtx();
-  const osc = c.createOscillator();
-  osc.type = "triangle";
   osc.frequency.setValueAtTime(freq, startAt);
 
   const filter = c.createBiquadFilter();
   filter.type = "lowpass";
-  filter.frequency.value = 1400;
+  filter.frequency.value = 900;
+  filter.Q.value = 1.2;
 
   const gain = c.createGain();
-  gain.gain.setValueAtTime(0, startAt);
-  gain.gain.linearRampToValueAtTime(volume, startAt + duration * 0.15);
+  gain.gain.setValueAtTime(volume, startAt);
   gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
 
   osc.connect(filter).connect(gain).connect(getMusicGain());
@@ -171,63 +152,73 @@ function scheduleNote(freq, startAt, duration, volume = 0.06) {
   osc.stop(startAt + duration);
 }
 
-function schedulePulse(startAt) {
+function scheduleLead(freq, startAt, duration, volume = 0.06) {
   const c = getCtx();
   const osc = c.createOscillator();
-  osc.type = "sine";
-  osc.frequency.setValueAtTime(70, startAt);
-  osc.frequency.exponentialRampToValueAtTime(35, startAt + 0.35);
+  osc.type = "triangle";
+  osc.frequency.setValueAtTime(freq, startAt);
+
+  const filter = c.createBiquadFilter();
+  filter.type = "lowpass";
+  filter.frequency.value = 2400;
 
   const gain = c.createGain();
-  gain.gain.setValueAtTime(0.14, startAt);
-  gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.4);
+  gain.gain.setValueAtTime(0, startAt);
+  gain.gain.linearRampToValueAtTime(volume, startAt + duration * 0.12);
+  gain.gain.exponentialRampToValueAtTime(0.001, startAt + duration);
 
-  osc.connect(gain).connect(getMusicGain());
+  osc.connect(filter).connect(gain).connect(getMusicGain());
   osc.start(startAt);
-  osc.stop(startAt + 0.4);
+  osc.stop(startAt + duration);
 }
 
-function scheduleWind(startAt, duration) {
+/** A crisp rim-click for a light rhythmic pulse — energetic, not a "heartbeat". */
+function scheduleClick(startAt, volume = 0.05) {
   const c = getCtx();
-  const size = Math.floor(c.sampleRate * duration);
+  const size = Math.floor(c.sampleRate * 0.03);
   const buffer = c.createBuffer(1, size, c.sampleRate);
   const data = buffer.getChannelData(0);
-  for (let i = 0; i < size; i++) data[i] = Math.random() * 2 - 1;
+  for (let i = 0; i < size; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / size);
 
   const src = c.createBufferSource();
   src.buffer = buffer;
   const filter = c.createBiquadFilter();
-  filter.type = "bandpass";
-  filter.frequency.value = 500;
-  filter.Q.value = 0.6;
+  filter.type = "highpass";
+  filter.frequency.value = 2000;
 
   const gain = c.createGain();
-  gain.gain.setValueAtTime(0.012, startAt);
+  gain.gain.setValueAtTime(volume, startAt);
+  gain.gain.exponentialRampToValueAtTime(0.001, startAt + 0.03);
 
   src.connect(filter).connect(gain).connect(getMusicGain());
   src.start(startAt);
-  src.stop(startAt + duration);
+  src.stop(startAt + 0.03);
 }
 
-/** Schedules one full phrase starting at `startAt` (an AudioContext time). */
+/** Schedules one full phrase starting at `startAt` (an AudioContext time).
+ *  A steady driving bass riff carries the energy; the lead only answers
+ *  every other bar so it stays punchy instead of busy. */
 function schedulePhrase(startAt) {
-  scheduleDrone(startAt, PHRASE_SECONDS);
-  scheduleWind(startAt, PHRASE_SECONDS);
-  [0, 4, 8, 12].forEach((t) => schedulePulse(startAt + t));
+  const beat = PHRASE_SECONDS / 8; // 8 driving eighth-note hits per phrase
 
-  scheduleNote(SCALE.A2, startAt + 0, 2.2, 0.055);
-  scheduleNote(SCALE.C3, startAt + 3, 1.4, 0.05);
-  scheduleNote(SCALE.Bb2, startAt + 5, 1.0, 0.045);
-  scheduleNote(SCALE.E3, startAt + 8, 2.6, 0.05);
-  scheduleNote(SCALE.D3, startAt + 11, 1.4, 0.045);
-  scheduleNote(SCALE.F3, startAt + 13, 1.1, 0.05);
+  const riff = [BASS.A2, BASS.A2, BASS.C3, BASS.A2, BASS.G2, BASS.G2, BASS.D3, BASS.E3];
+  riff.forEach((freq, i) => {
+    scheduleBassHit(freq, startAt + i * beat, beat * 0.85, 0.1);
+    scheduleClick(startAt + i * beat, 0.035);
+  });
+
+  scheduleLead(LEAD.A4, startAt + 0, beat * 1.8, 0.055);
+  scheduleLead(LEAD.C5, startAt + beat * 2, beat * 0.9, 0.05);
+  scheduleLead(LEAD.D5, startAt + beat * 3, beat * 0.9, 0.05);
+  scheduleLead(LEAD.E5, startAt + beat * 4, beat * 1.8, 0.06);
+  scheduleLead(LEAD.A5, startAt + beat * 6, beat * 1.8, 0.05);
 }
 
 function musicLoop() {
   if (!musicPlaying) return;
   const c = getCtx();
   schedulePhrase(c.currentTime + 0.05);
-  musicTimer = setTimeout(musicLoop, (PHRASE_SECONDS - 0.5) * 1000);
+  musicTimer = setTimeout(musicLoop, (PHRASE_SECONDS - 0.3) * 1000);
 }
 
 export function startMusic() {
