@@ -188,11 +188,11 @@ export function drawAim(ctx, cue, state, stickColor = "#caa06a", balls = []) {
   // cue stick pulled back opposite the shot direction
   const pull = Math.min(dist, 130);
   const stickStart = cue.r + 14 + pull;
-  const stickEnd = stickStart + 150;
+  const stickEnd = stickStart + 180; // 150 * 1.2 — 20% longer
 
   ctx.save();
   ctx.strokeStyle = stickColor;
-  ctx.lineWidth = 6;
+  ctx.lineWidth = 7.2; // 6 * 1.2 — 20% wider
   ctx.lineCap = "round";
   ctx.beginPath();
   ctx.moveTo(cue.x - dirX * stickStart, cue.y - dirY * stickStart);

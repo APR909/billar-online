@@ -116,8 +116,10 @@ let musicVolumeTarget = 0.16;
 
 // A natural minor (no phrygian flat-2, so it reads as driving/epic
 // rather than unsettling) — root A2, riff notes, and a brighter lead octave
-const BASS = { A2: 110, C3: 130.81, D3: 146.83, E3: 164.81, G2: 98.0 };
-const LEAD = { A4: 440, C5: 523.25, D5: 587.33, E5: 659.25, G4: 392.0, A5: 880 };
+// A natural minor throughout, so every track stays harmonically consistent
+// even though each has its own riff and mood
+const BASS = { A2: 110, B2: 123.47, C3: 130.81, D3: 146.83, E3: 164.81, F3: 174.61, G2: 98.0, G3: 196.0 };
+const LEAD = { A4: 440, B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, F5: 698.46, G4: 392.0, G5: 783.99, A5: 880 };
 const PHRASE_SECONDS = 8; // shorter, punchier loop
 
 function getMusicGain() {
@@ -195,29 +197,69 @@ function scheduleClick(startAt, volume = 0.05) {
   src.stop(startAt + 0.03);
 }
 
-/** Schedules one full phrase starting at `startAt` (an AudioContext time).
- *  A steady driving bass riff carries the energy; the lead only answers
- *  every other bar so it stays punchy instead of busy. */
-function schedulePhrase(startAt) {
+// Three distinct riffs/leads sharing the same key and instrumentation, so
+// they auto-cycle into each other without ever feeling like a genre clash —
+// just different moods within the same "hell pool" sound.
+const TRACKS = [
+  {
+    // original — driving and even
+    riff: [BASS.A2, BASS.A2, BASS.C3, BASS.A2, BASS.G2, BASS.G2, BASS.D3, BASS.E3],
+    lead: [
+      { note: LEAD.A4, start: 0, dur: 1.8 },
+      { note: LEAD.C5, start: 2, dur: 0.9 },
+      { note: LEAD.D5, start: 3, dur: 0.9 },
+      { note: LEAD.E5, start: 4, dur: 1.8 },
+      { note: LEAD.A5, start: 6, dur: 1.8 },
+    ],
+  },
+  {
+    // moodier — descending riff, lower lead register
+    riff: [BASS.E3, BASS.D3, BASS.C3, BASS.B2, BASS.A2, BASS.A2, BASS.C3, BASS.B2],
+    lead: [
+      { note: LEAD.C5, start: 0, dur: 1.8 },
+      { note: LEAD.B4, start: 2, dur: 0.9 },
+      { note: LEAD.A4, start: 3, dur: 0.9 },
+      { note: LEAD.G4, start: 4, dur: 1.8 },
+      { note: LEAD.E5, start: 6, dur: 1.8 },
+    ],
+  },
+  {
+    // brighter and punchier — busier riff, higher lead register
+    riff: [BASS.A2, BASS.C3, BASS.D3, BASS.C3, BASS.A2, BASS.G2, BASS.A2, BASS.B2],
+    lead: [
+      { note: LEAD.E5, start: 0, dur: 0.9 },
+      { note: LEAD.D5, start: 1, dur: 0.9 },
+      { note: LEAD.C5, start: 2, dur: 1.8 },
+      { note: LEAD.A4, start: 4, dur: 0.9 },
+      { note: LEAD.G5, start: 5, dur: 0.9 },
+      { note: LEAD.A5, start: 6, dur: 1.8 },
+    ],
+  },
+];
+
+let currentTrack = 0;
+
+/** Schedules one full phrase of the given track, starting at `startAt`
+ *  (an AudioContext time). A steady driving bass riff carries the energy;
+ *  the lead only answers every other bar so it stays punchy, not busy. */
+function schedulePhrase(startAt, track) {
   const beat = PHRASE_SECONDS / 8; // 8 driving eighth-note hits per phrase
 
-  const riff = [BASS.A2, BASS.A2, BASS.C3, BASS.A2, BASS.G2, BASS.G2, BASS.D3, BASS.E3];
-  riff.forEach((freq, i) => {
+  track.riff.forEach((freq, i) => {
     scheduleBassHit(freq, startAt + i * beat, beat * 0.85, 0.1);
     scheduleClick(startAt + i * beat, 0.035);
   });
 
-  scheduleLead(LEAD.A4, startAt + 0, beat * 1.8, 0.055);
-  scheduleLead(LEAD.C5, startAt + beat * 2, beat * 0.9, 0.05);
-  scheduleLead(LEAD.D5, startAt + beat * 3, beat * 0.9, 0.05);
-  scheduleLead(LEAD.E5, startAt + beat * 4, beat * 1.8, 0.06);
-  scheduleLead(LEAD.A5, startAt + beat * 6, beat * 1.8, 0.05);
+  track.lead.forEach(({ note, start, dur }) => {
+    scheduleLead(note, startAt + start * beat, dur * beat, 0.055);
+  });
 }
 
 function musicLoop() {
   if (!musicPlaying) return;
   const c = getCtx();
-  schedulePhrase(c.currentTime + 0.05);
+  schedulePhrase(c.currentTime + 0.05, TRACKS[currentTrack]);
+  currentTrack = (currentTrack + 1) % TRACKS.length;
   musicTimer = setTimeout(musicLoop, (PHRASE_SECONDS - 0.3) * 1000);
 }
 
